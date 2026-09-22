@@ -1430,3 +1430,49 @@ document.addEventListener('DOMContentLoaded', () => {
   renderQuickShortcutsBar();
   updateTokenCounter();
 });
+
+// Cloud Sync Listener to re-render UI when remote data updates
+document.addEventListener('DOMContentLoaded', () => {
+  const store = window.appStore;
+  
+  // Listen for storage events (e.g., changes across tabs)
+  window.addEventListener('storage', (e) => {
+    if (e.key === store.STORAGE_KEY) {
+      store.state = store.load();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      if (typeof renderMessages === 'function') renderMessages();
+      if (typeof renderQuickShortcutsBar === 'function') renderQuickShortcutsBar();
+      if (typeof updateTokenCounter === 'function') updateTokenCounter();
+    }
+  });
+
+  // Force Sync Button in Settings Modal
+  const btnForceSync = document.getElementById('btn-force-sync');
+  if (btnForceSync && window.cloudSyncService) {
+    btnForceSync.addEventListener('click', async () => {
+      btnForceSync.innerHTML = '<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Sincronizando...</span>';
+      if (window.lucide) lucide.createIcons();
+      
+      await window.cloudSyncService.pullState(store.state.config.userId, (data) => {
+        store.mergeRemoteData(data);
+      });
+      await window.cloudSyncService.pushState(store.state);
+      
+      btnForceSync.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i><span class="text-emerald-400">¡Sincronizado!</span>';
+      if (window.lucide) lucide.createIcons();
+      setTimeout(() => {
+        btnForceSync.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>Forzar Sync</span>';
+        if (window.lucide) lucide.createIcons();
+      }, 1500);
+    });
+  }
+
+  // Subscribe state changes to auto-refresh UI
+  store.subscribe(() => {
+    // When remote merge happens
+    const projectsListEl = document.getElementById('projects-list');
+    if (projectsListEl && typeof renderSidebar === 'function') {
+      renderSidebar();
+    }
+  });
+});

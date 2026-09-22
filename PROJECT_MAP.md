@@ -4,15 +4,15 @@
 
 ```mermaid
 graph TD
-    User([Usuario]) --> WebApp[Studio Agent WebApp]
+    User([Usuario Multi-dispositivo: iPhone, iPad, Mac]) --> WebApp[Studio Agent WebApp]
     
     subgraph UI_UX [UI / UX Apple-Centric Design]
-        Nav[Dynamic Island & Navigation Bar]
+        Nav[Dynamic Island, Sync Badge & Navigation Bar]
         ZenToggle[Zen Mode / Sidebar Toggle]
         Sidebar[Barra Lateral: Proyectos, Carpetas, Chats, Tags & Pins]
-        ChatArea[Área de Conversación con SSE Streaming]
+        ChatArea[Área de Conversación con SSE Streaming & Live Step Timeline]
         InputDock[Smart Input: Slash / Commands, Attachment Dock & Prompts]
-        CanvasRight[Canvas Lateral: Iframe Live Preview, Diff Slider & Code]
+        CanvasRight[Side View: Iframe Live Preview, Multi-Device & Diff Slider]
         Debugger[Floating Debugger: Logs de Consola y API Dify]
         CmdModal[Modal Gestor CRUD de Comandos y Atajos]
         PromptModal[Modal Gestor CRUD de Biblioteca de Prompts]
@@ -23,14 +23,16 @@ graph TD
 
     subgraph Core_Engine [Motor de Lógica Frontend]
         Store[Local Storage / Sync Engine con CRUD Atajos & Prompts]
-        DifyClient[Dify SSE Client & Token Streamer]
+        CloudSync[Cloud Sync Engine con Multi-Device Polling & Auto-Push]
+        DifyClient[Dify SSE Client & Action Humanizer]
         SlashHandler[Slash / Autocomplete & In-Place Cursor Inserter]
         FileEngine[Client Compressor & Multi-upload Manager]
         ExportEngine[Folder & Project Zip Exporter - JSZip]
     end
 
-    subgraph Remote_API [Servicios Remotos]
+    subgraph Remote_Services [Servicios Remotos]
         DifyAPI[Dify API v1: /chat-messages, /files/upload, /messages]
+        CloudDB[Cloud Context Sync API: /objects Multi-device Store]
     end
 
     WebApp --> Nav
@@ -47,23 +49,17 @@ graph TD
     InputDock --> FileEngine
     ChatArea --> DifyClient
     DifyClient <-->|SSE Stream / HTTPS| DifyAPI
+    Store <--> CloudSync
+    CloudSync <-->|JSON REST Sync| CloudDB
     FileEngine -->|Upload| DifyAPI
     Store <--> WebApp
     ExportEngine <--> Store
 ```
 
 ## Componentes y Módulos
-1. **Dynamic Island & Header:** Notificaciones de estado reactivas, contador de tokens y cambio de temas.
-2. **Sidebar:** Estructura jerárquica con descarga instantánea individual de carpetas/proyectos en ZIP, anclajes y tags.
-3. **Smart Input & Slash Interceptor:**
-   - Menú flotante al tipear `/` con filtrado en tiempo real según caracteres subsiguientes.
-   - Inserción quirúrgica del comando en la posición exacta del cursor sin borrar el texto existente.
-   - Barra de atajos rápidos personalizable con acceso a gestión y edición.
-4. **Biblioteca de Prompts y Templates (CRUD Completo):**
-   - Modal con creación, edición en vivo y eliminación de templates.
-   - Botón "Usar en Chat" para inserción directa en el cursor sin perder texto previo.
-5. **Gestor de Atajos y Comandos (CRUD Completo):**
-   - Creación y edición de nombres de comando `/...` y descripciones.
-6. **Descarga de Carpetas y Proyectos:**
-   - Empaquetado instantáneo con JSZip preservando nombres y metadatos JSON.
-7. **Canvas Lateral:** Vista previa multi-resolución (Desktop 1920px, Tablet 768px, Mobile 375px), slider Antes/Después y visor de código.
+1. **Cloud Multi-Device Sync Engine (`js/sync.js`):** Sincronización automática de proyectos, carpetas, chats, prompts y comandos entre todos los dispositivos que usen el mismo `User ID`.
+2. **Visualización En Vivo de Acciones del Agente:** Timeline de pasos humanizado con iconos y detalles contextuales (despliegue en Surge, sincronización en GitHub, descargas, scripts, etc.).
+3. **Side View Multi-Device Responsive:** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Celular (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
+4. **Smart Input & Slash Interceptor:** Inserción quirúrgica de atajos y prompts en la posición actual del cursor sin borrar el texto ingresado.
+5. **Biblioteca de Prompts & Gestor de Atajos (CRUD Completo):** Edición, creación y eliminación en tiempo real con persistencia en la nube.
+6. **Descarga de Carpetas y Proyectos en ZIP:** Empaquetado instantáneo con metadatos JSON y Markdown.

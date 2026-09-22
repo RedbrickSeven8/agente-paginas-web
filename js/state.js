@@ -1,9 +1,11 @@
-// State Management for Studio Agent Client
+// State Management for Studio Agent Client with Cloud Sync Engine
 class Store {
   constructor() {
     this.STORAGE_KEY = 'studio_agent_data_v1';
     this.state = this.load();
     this.listeners = [];
+    this.debounceTimer = null;
+    this.initSync();
   }
 
   getDefaults() {
@@ -11,8 +13,8 @@ class Store {
       config: {
         apiUrl: 'https://api.dify.ai/v1',
         apiKey: 'app-CSpN9ANweE2UjmdYvMqjURaF',
-        userId: 'user-' + Math.random().toString(36).substring(2, 11),
-        theme: 'dark', // 'dark' (OLED True Black), 'light'
+        userId: 'studio_user_default', // Fixed standard default user ID for seamless out-of-the-box multi-device sync
+        theme: 'dark',
         zenMode: false
       },
       projects: [],
@@ -50,7 +52,6 @@ class Store {
         const parsed = JSON.parse(saved);
         const defaults = this.getDefaults();
         
-        // Ensure commands have id
         let commands = parsed.customCommands || defaults.customCommands;
         commands = commands.map((c, i) => ({
           id: c.id || `cmd_${Date.now()}_${i}`,
@@ -80,12 +81,89 @@ class Store {
     return this.getDefaults();
   }
 
-  save() {
+  save(skipCloudPush = false) {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
       this.notify();
+
+      if (!skipCloudPush && window.cloudSyncService) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => {
+          window.cloudSyncService.pushState(this.state);
+        }, 1000);
+      }
     } catch (e) {
       console.error('Error saving state:', e);
+    }
+  }
+
+  initSync() {
+    setTimeout(async () => {
+      if (window.cloudSyncService) {
+        // Initial cloud pull
+        await window.cloudSyncService.pullState(this.state.config.userId, (remoteData) => {
+          this.mergeRemoteData(remoteData);
+        });
+
+        // Start background synchronization polling
+        window.cloudSyncService.startPolling(
+          () => this.state.config.userId,
+          (remoteData) => this.mergeRemoteData(remoteData)
+        );
+      }
+    }, 500);
+  }
+
+  mergeRemoteData(remote) {
+    if (!remote) return;
+    let hasChanges = false;
+
+    // Merge Projects
+    if (Array.isArray(remote.projects)) {
+      if (JSON.stringify(this.state.projects) !== JSON.stringify(remote.projects)) {
+        this.state.projects = remote.projects;
+        hasChanges = true;
+      }
+    }
+
+    // Merge Folders
+    if (Array.isArray(remote.folders)) {
+      if (JSON.stringify(this.state.folders) !== JSON.stringify(remote.folders)) {
+        this.state.folders = remote.folders;
+        hasChanges = true;
+      }
+    }
+
+    // Merge Chats & Messages
+    if (Array.isArray(remote.chats)) {
+      if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
+        this.state.chats = remote.chats;
+        if (!this.state.activeChatId && remote.chats.length > 0) {
+          this.state.activeChatId = remote.chats[0].id;
+        }
+        hasChanges = true;
+      }
+    }
+
+    // Merge Custom Commands / Atajos
+    if (Array.isArray(remote.customCommands) && remote.customCommands.length > 0) {
+      if (JSON.stringify(this.state.customCommands) !== JSON.stringify(remote.customCommands)) {
+        this.state.customCommands = remote.customCommands;
+        hasChanges = true;
+      }
+    }
+
+    // Merge Prompt Templates
+    if (Array.isArray(remote.promptTemplates) && remote.promptTemplates.length > 0) {
+      if (JSON.stringify(this.state.promptTemplates) !== JSON.stringify(remote.promptTemplates)) {
+        this.state.promptTemplates = remote.promptTemplates;
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      this.save(true); // save to localStorage without triggering loop
+      this.addLog('info', 'Contexto y datos sincronizados desde la nube.');
     }
   }
 
@@ -243,7 +321,7 @@ class Store {
   }
 
   // --- Messages ---
-  addMessage(chatId, { role, content, files = [], thought = '', toolCalls = [] }) {
+  addMessage(chatId, { role, content, files = [], thought = '', toolCalls = [], steps = [] }) {
     const chat = this.state.chats.find(x => x.id === chatId);
     if (!chat) return null;
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
@@ -254,12 +332,13 @@ class Store {
       files,
       thought,
       toolCalls,
+      steps,
       timestamp: new Date().toISOString()
     };
     chat.messages.push(msg);
     chat.updatedAt = new Date().toISOString();
     
-    const estimatedTokens = Math.ceil(content.length / 4);
+    const estimatedTokens = Math.ceil((content || '').length / 4);
     this.state.tokenUsage.total += estimatedTokens;
 
     this.save();
@@ -288,12 +367,12 @@ class Store {
     };
     this.state.logs.unshift(log);
     if (this.state.logs.length > 200) this.state.logs.pop();
-    this.save();
+    this.save(true);
   }
 
   clearLogs() {
     this.state.logs = [];
-    this.save();
+    this.save(true);
   }
 }
 

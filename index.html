@@ -74,6 +74,12 @@
 
     <!-- Right Quick Actions -->
     <div class="flex items-center space-x-2">
+      <!-- Indicador de Sincronización en Nube Multi-dispositivo -->
+      <div id="sync-status-indicator" class="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-[10px] text-neutral-400 cursor-pointer" title="Sincronización multi-dispositivo activa">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        <span>Sincronizado</span>
+      </div>
+
       <!-- Botón para Colapsar / Mostrar Side View -->
       <button id="btn-toggle-side-view" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all flex items-center space-x-1.5 border border-white/5" title="Mostrar / Ocultar Side View (Iframe Live Preview)">
         <i data-lucide="layout-panel-right" class="w-4 h-4 text-blue-400"></i>
@@ -101,7 +107,7 @@
         <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i>
       </button>
 
-      <button id="btn-open-settings" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all" title="Ajustes API">
+      <button id="btn-open-settings" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all" title="Ajustes y Sincronización Multiplataforma">
         <i data-lucide="sliders" class="w-4 h-4"></i>
       </button>
     </div>
@@ -362,12 +368,17 @@
       <div class="flex items-center justify-between border-b border-white/10 pb-3">
         <h3 class="text-base font-bold text-white flex items-center space-x-2">
           <i data-lucide="sliders" class="w-4 h-4 text-blue-400"></i>
-          <span>Configuración & Conexión Dify</span>
+          <span>Configuración & Sincronización</span>
         </h3>
         <button class="btn-close-modal text-neutral-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
 
       <form id="form-settings" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block text-neutral-300 mb-1 font-medium">User ID (Sincronización Multi-dispositivo):</label>
+          <input type="text" id="setting-user-id" placeholder="studio_user_default" class="w-full p-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-200 focus:outline-none focus:border-blue-500 font-mono font-bold text-blue-300">
+          <p class="text-[10px] text-neutral-500 mt-1">Usa este mismo User ID en iPhone, iPad, Mac y otros navegadores para compartir proyectos, chats, prompts y atajos en tiempo real.</p>
+        </div>
         <div>
           <label class="block text-neutral-300 mb-1 font-medium">API Endpoint:</label>
           <input type="text" id="setting-api-url" class="w-full p-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-200 focus:outline-none focus:border-blue-500">
@@ -377,19 +388,21 @@
           <input type="password" id="setting-api-key" class="w-full p-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-200 focus:outline-none focus:border-blue-500 font-mono">
         </div>
         <div>
-          <label class="block text-neutral-300 mb-1 font-medium">User ID (Sincronización Multiplataforma):</label>
-          <input type="text" id="setting-user-id" class="w-full p-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-200 focus:outline-none focus:border-blue-500 font-mono">
-        </div>
-        <div>
           <label class="block text-neutral-300 mb-1 font-medium">Tema de Interfaz:</label>
           <select id="setting-theme" class="w-full p-2.5 rounded-xl bg-neutral-900 border border-white/10 text-neutral-200 focus:outline-none">
             <option value="dark">OLED True Black (Recomendado Apple)</option>
             <option value="light">Claro Minimalista</option>
           </select>
         </div>
-        <div class="pt-3 flex justify-end space-x-2">
-          <button type="button" class="btn-close-modal px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20">Guardar Cambios</button>
+        <div class="pt-3 flex justify-between items-center">
+          <button type="button" id="btn-force-sync" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-blue-400 text-xs font-medium flex items-center space-x-1">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Forzar Sync</span>
+          </button>
+          <div class="flex space-x-2">
+            <button type="button" class="btn-close-modal px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300">Cerrar</button>
+            <button type="submit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20">Guardar</button>
+          </div>
         </div>
       </form>
     </div>
@@ -532,6 +545,7 @@
   </div>
 
   <!-- Scripts -->
+  <script src="js/sync.js"></script>
   <script src="js/state.js"></script>
   <script src="js/dify.js"></script>
   <script src="js/canvas.js"></script>
