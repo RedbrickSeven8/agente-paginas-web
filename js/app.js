@@ -1397,3 +1397,19 @@ document.addEventListener('DOMContentLoaded', () => {
   renderQuickShortcutsBar();
   updateTokenCounter();
 });
+
+// Side View Toggle Button Handler
+document.addEventListener('DOMContentLoaded', () => {
+  const btnToggleSideView = document.getElementById('btn-toggle-side-view');
+  if (btnToggleSideView && window.canvasManager) {
+    btnToggleSideView.addEventListener('click', () => {
+      window.canvasManager.toggle();
+    });
+  }
+  const btnRefreshPreview = document.getElementById('btn-refresh-preview');
+  if (btnRefreshPreview && window.canvasManager) {
+    btnRefreshPreview.addEventListener('click', () => {
+      window.canvasManager.renderPreview(window.canvasManager.currentContent);
+    });
+  }
+});
