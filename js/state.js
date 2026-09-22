@@ -17,11 +17,59 @@ class Store {
         theme: 'dark',
         zenMode: false
       },
-      projects: [],
-      folders: [],
-      chats: [],
-      activeChatId: null,
-      activeProjectId: null,
+      projects: [
+        {
+          id: 'proj_default_1',
+          name: 'Agente Páginas Web',
+          icon: 'globe',
+          createdAt: new Date().toISOString(),
+          archived: false
+        }
+      ],
+      folders: [
+        {
+          id: 'fold_default_1',
+          name: 'Páginas & Landings',
+          projectId: 'proj_default_1',
+          createdAt: new Date().toISOString()
+        }
+      ],
+      chats: [
+        {
+          id: 'chat_default_1',
+          title: 'Diseño Web Responsive & Optimización',
+          projectId: 'proj_default_1',
+          folderId: 'fold_default_1',
+          pinned: true,
+          archived: false,
+          tags: ['#DiseñoWeb', '#Frontend', '#Mobile'],
+          messages: [
+            {
+              id: 'msg_welcome_1',
+              role: 'assistant',
+              content: '¡Bienvenido a **Studio Agent**! Tu espacio de trabajo para creación, desarrollo y optimización de páginas web modernas con estética minimalista Apple.\n\nPuedes usar los comandos rápidos como `/landing`, `/variaspaginas`, `/crealasimagenes` o `/creartextos` para comenzar de inmediato.',
+              files: [],
+              thought: '',
+              toolCalls: [],
+              steps: [
+                {
+                  id: 'step_init_1',
+                  title: 'Entorno de desarrollo listo',
+                  type: 'terminal',
+                  detail: 'Workspace sincronizado para móviles, tablets y desktop',
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                }
+              ],
+              timestamp: new Date().toISOString()
+            }
+          ],
+          difyConversationId: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      activeChatId: 'chat_default_1',
+      activeProjectId: 'proj_default_1',
       customCommands: [
         { id: 'cmd_1', name: '/editalasimagenes', desc: 'Edición de estilo, fondo y estética de imágenes adjuntas.', icon: 'wand-2' },
         { id: 'cmd_2', name: '/crealasimagenes', desc: 'Generación de todas las imágenes del sitio web desde cero.', icon: 'image-plus' },
@@ -58,11 +106,24 @@ class Store {
           config.userId = 'studio_user_default';
         }
 
-        return {
+        const stateObj = {
           ...defaults,
           ...parsed,
           config
         };
+
+        // If projects is empty or not an array, initialize with defaults
+        if (!Array.isArray(stateObj.projects) || stateObj.projects.length === 0) {
+          stateObj.projects = defaults.projects;
+          stateObj.folders = defaults.folders;
+          if (!stateObj.chats || stateObj.chats.length === 0) {
+            stateObj.chats = defaults.chats;
+          }
+          stateObj.activeProjectId = defaults.activeProjectId;
+          stateObj.activeChatId = stateObj.chats[0]?.id || null;
+        }
+
+        return stateObj;
       }
     } catch (e) {
       console.error('Error loading state:', e);
@@ -112,28 +173,62 @@ class Store {
     if (!remote) return;
     let hasChanges = false;
 
-    // Check Projects
+    // Smart merge for Projects: ensure items are not dropped if valid
     if (Array.isArray(remote.projects)) {
-      if (JSON.stringify(this.state.projects) !== JSON.stringify(remote.projects)) {
-        this.state.projects = remote.projects;
+      // Map remote projects by id
+      const mergedProjects = [...this.state.projects];
+      remote.projects.forEach(rp => {
+        const idx = mergedProjects.findIndex(p => p.id === rp.id);
+        if (idx !== -1) {
+          mergedProjects[idx] = { ...mergedProjects[idx], ...rp };
+        } else {
+          mergedProjects.push(rp);
+        }
+      });
+
+      if (JSON.stringify(this.state.projects) !== JSON.stringify(mergedProjects)) {
+        this.state.projects = mergedProjects;
         hasChanges = true;
       }
     }
 
-    // Check Folders
+    // Smart merge for Folders
     if (Array.isArray(remote.folders)) {
-      if (JSON.stringify(this.state.folders) !== JSON.stringify(remote.folders)) {
-        this.state.folders = remote.folders;
+      const mergedFolders = [...this.state.folders];
+      remote.folders.forEach(rf => {
+        const idx = mergedFolders.findIndex(f => f.id === rf.id);
+        if (idx !== -1) {
+          mergedFolders[idx] = { ...mergedFolders[idx], ...rf };
+        } else {
+          mergedFolders.push(rf);
+        }
+      });
+      if (JSON.stringify(this.state.folders) !== JSON.stringify(mergedFolders)) {
+        this.state.folders = mergedFolders;
         hasChanges = true;
       }
     }
 
-    // Check Chats
+    // Smart merge for Chats
     if (Array.isArray(remote.chats)) {
-      if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
-        this.state.chats = remote.chats;
-        if (!this.state.activeChatId && remote.chats.length > 0) {
-          this.state.activeChatId = remote.chats[0].id;
+      const mergedChats = [...this.state.chats];
+      remote.chats.forEach(rc => {
+        const idx = mergedChats.findIndex(c => c.id === rc.id);
+        if (idx !== -1) {
+          // If remote chat has messages and local doesn't, or vice-versa
+          const localMessages = mergedChats[idx].messages || [];
+          const remoteMessages = rc.messages || [];
+          const messages = localMessages.length >= remoteMessages.length ? localMessages : remoteMessages;
+          mergedChats[idx] = { ...mergedChats[idx], ...rc, messages };
+        } else {
+          mergedChats.push(rc);
+        }
+      });
+
+      if (JSON.stringify(this.state.chats) !== JSON.stringify(mergedChats)) {
+        this.state.chats = mergedChats;
+        if (!this.state.activeChatId && mergedChats.length > 0) {
+          this.state.activeChatId = mergedChats[0].id;
         }
         hasChanges = true;
       }
@@ -175,7 +270,7 @@ class Store {
   // --- Projects CRUD ---
   addProject(name, icon = 'folder') {
     const id = 'proj_' + Date.now();
-    const proj = { id, name, icon, createdAt: new Date().toISOString(), archived: false };
+    const proj = { id, name: name.trim(), icon, createdAt: new Date().toISOString(), archived: false };
     this.state.projects.push(proj);
     this.state.activeProjectId = id;
     this.save();
@@ -194,14 +289,16 @@ class Store {
     this.state.projects = this.state.projects.filter(x => x.id !== id);
     this.state.folders = this.state.folders.filter(x => x.projectId !== id);
     this.state.chats = this.state.chats.filter(x => x.projectId !== id);
-    if (this.state.activeProjectId === id) this.state.activeProjectId = null;
+    if (this.state.activeProjectId === id) {
+      this.state.activeProjectId = this.state.projects.length > 0 ? this.state.projects[0].id : null;
+    }
     this.save();
   }
 
   // --- Folders CRUD ---
   addFolder(name, projectId) {
     const id = 'fold_' + Date.now();
-    const folder = { id, name, projectId, createdAt: new Date().toISOString() };
+    const folder = { id, name: name.trim(), projectId, createdAt: new Date().toISOString() };
     this.state.folders.push(folder);
     this.save();
     return folder;
@@ -228,7 +325,7 @@ class Store {
     const id = 'chat_' + Date.now();
     const chat = {
       id,
-      title,
+      title: title.trim(),
       projectId,
       folderId,
       pinned: false,

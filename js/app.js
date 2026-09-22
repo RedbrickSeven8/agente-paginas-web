@@ -68,24 +68,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const projectChats = store.state.chats.filter(c => c.projectId === p.id && !c.folderId);
 
         const pDiv = document.createElement('div');
-        pDiv.className = `group mb-2 rounded-xl p-2 transition-all ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`;
+        pDiv.className = `group mb-2 rounded-xl p-2 transition-all border ${isActive ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/5'}`;
         pDiv.innerHTML = `
-          <div class="flex items-center justify-between cursor-pointer" data-project-id="${p.id}">
-            <div class="flex items-center space-x-2 truncate">
-              <span class="w-2 h-2 rounded-full ${isActive ? 'bg-blue-400' : 'bg-neutral-600'}"></span>
-              <span class="text-xs font-semibold ${isActive ? 'text-white' : 'text-neutral-300'}">${escapeHtml(p.name)}</span>
+          <div class="flex items-center justify-between cursor-pointer project-header-row py-1 px-1 rounded-lg hover:bg-white/5 transition-all" data-project-id="${p.id}">
+            <div class="flex items-center space-x-2 truncate flex-1 mr-1">
+              <span class="w-2.5 h-2.5 rounded-full ${isActive ? 'bg-blue-400 shadow-[0_0_8px_#2997ff]' : 'bg-neutral-600'}"></span>
+              <span class="text-xs font-semibold ${isActive ? 'text-blue-300' : 'text-neutral-200'} truncate">${escapeHtml(p.name)}</span>
+              <span class="text-[9px] px-1.5 py-0.2 bg-white/5 rounded text-neutral-400 font-mono">${projectChats.length + projectFolders.reduce((acc, f) => acc + store.state.chats.filter(c => c.folderId === f.id).length, 0)}</span>
             </div>
-            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button class="btn-download-project p-1 text-neutral-400 hover:text-emerald-400" title="Descargar Proyecto Completo (.zip)" data-project-id="${p.id}">
+            <div class="flex items-center space-x-0.5 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
+              <button class="btn-download-project p-1 text-neutral-400 hover:text-emerald-400 rounded hover:bg-white/10" title="Descargar Proyecto Completo (.zip)" data-project-id="${p.id}">
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
               </button>
-              <button class="btn-add-folder p-1 text-neutral-400 hover:text-white" title="Nueva Carpeta" data-project-id="${p.id}">
+              <button class="btn-add-folder p-1 text-neutral-400 hover:text-white rounded hover:bg-white/10" title="Nueva Carpeta" data-project-id="${p.id}">
                 <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
               </button>
-              <button class="btn-add-proj-chat p-1 text-neutral-400 hover:text-white" title="Nuevo Chat en Proyecto" data-project-id="${p.id}">
+              <button class="btn-add-proj-chat p-1 text-neutral-400 hover:text-white rounded hover:bg-white/10" title="Nuevo Chat en Proyecto" data-project-id="${p.id}">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
               </button>
-              <button class="btn-del-proj p-1 text-neutral-400 hover:text-red-400" title="Eliminar Proyecto" data-project-id="${p.id}">
+              <button class="btn-del-proj p-1 text-neutral-400 hover:text-red-400 rounded hover:bg-white/10" title="Eliminar Proyecto" data-project-id="${p.id}">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               </button>
             </div>
@@ -101,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
                       <i data-lucide="folder" class="w-3 h-3 text-neutral-500"></i>
                       <span>${escapeHtml(f.name)}</span>
                     </span>
-                    <div class="flex items-center space-x-1">
+                    <div class="flex items-center space-x-1 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button class="btn-download-folder p-0.5 hover:text-emerald-400" data-folder-id="${f.id}" title="Descargar Carpeta (.zip)">
                         <i data-lucide="download" class="w-3 h-3"></i>
                       </button>
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <i data-lucide="${chat.pinned ? 'pin' : 'message-square'}" class="w-3.5 h-3.5 ${chat.pinned ? 'text-amber-400' : 'text-neutral-500'} shrink-0"></i>
           <span class="truncate">${escapeHtml(chat.title || 'Conversación')}</span>
         </div>
-        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div class="flex items-center space-x-1 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
           <button class="btn-pin-chat p-1 hover:text-amber-400" data-chat-id="${chat.id}" title="${chat.pinned ? 'Desanclar' : 'Anclar'}">
             <i data-lucide="pin" class="w-3 h-3"></i>
           </button>
@@ -714,6 +715,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const projectHeader = e.target.closest('.project-header-row');
+    if (projectHeader && !e.target.closest('button')) {
+      const pId = projectHeader.dataset.projectId;
+      store.state.activeProjectId = (store.state.activeProjectId === pId) ? null : pId;
+      store.save();
+      renderSidebar();
+      return;
+    }
+
     const chatRow = e.target.closest('.chat-item-row');
     if (chatRow && !e.target.closest('.btn-pin-chat') && !e.target.closest('.btn-del-chat')) {
       const chatId = chatRow.dataset.chatId;
@@ -721,6 +731,10 @@ document.addEventListener('DOMContentLoaded', () => {
       store.save();
       renderSidebar();
       renderMessages();
+      if (window.innerWidth < 768) {
+        document.getElementById('sidebar')?.classList.add('-translate-x-full');
+        document.getElementById('sidebar-backdrop')?.classList.add('hidden');
+      }
       return;
     }
 

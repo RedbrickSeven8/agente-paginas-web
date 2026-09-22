@@ -2,16 +2,17 @@
 // Works seamlessly across iPhone, iPad, Android, macOS & Windows
 class CloudSyncService {
   constructor() {
-    this.HUB_OBJECT_ID = 'ff808181a09d98f701a0cb25b858739a';
+    this.HUB_OBJECT_ID = 'ff808181a09d98f701a0cb38f03773ae';
     this.BASE_URL = 'https://api.restful-api.dev/objects';
     this.isSyncing = false;
     this.syncTimer = null;
-    this.pollInterval = 3000;
+    this.pollInterval = 4000;
   }
 
   // Push local user workspace to Cloud Hub
   async pushState(state) {
-    const userId = (state && state.config && state.config.userId) ? state.config.userId.trim() : 'studio_user_default';
+    const rawUserId = (state && state.config && state.config.userId) ? state.config.userId.trim() : 'studio_user_default';
+    const safeKey = 'user_' + rawUserId.replace(/[^a-zA-Z0-9_]/g, '_');
     this.updateSyncBadge('Sincronizando...', true);
 
     const userPayload = {
@@ -26,33 +27,21 @@ class CloudSyncService {
     };
 
     try {
-      // 1. Fetch current global hub
-      let currentHubData = { version: 2, users: {} };
-      try {
-        const getRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, { cache: 'no-store' });
-        if (getRes.ok) {
-          const obj = await getRes.json();
-          if (obj && obj.data && typeof obj.data === 'object') {
-            currentHubData = obj.data;
-            if (!currentHubData.users) currentHubData.users = {};
-          }
+      const payloadString = JSON.stringify(userPayload);
+      const patchData = {
+        name: 'studio_agent_workspace_hub_v2',
+        data: {
+          [safeKey]: payloadString
         }
-      } catch(e) {}
+      };
 
-      // 2. Put user payload
-      currentHubData.users[userId] = userPayload;
-
-      // 3. Update Hub in Cloud
-      const putRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, {
-        method: 'PUT',
+      const patchRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'studio_workspace_hub_v1',
-          data: currentHubData
-        })
+        body: JSON.stringify(patchData)
       });
 
-      if (putRes.ok) {
+      if (patchRes.ok) {
         this.updateSyncBadge('Nube OK');
       } else {
         this.updateSyncBadge('Local');
@@ -65,15 +54,21 @@ class CloudSyncService {
   // Pull user workspace from Cloud Hub
   async pullState(userId, onMerge) {
     if (!userId) userId = 'studio_user_default';
+    const safeKey = 'user_' + userId.replace(/[^a-zA-Z0-9_]/g, '_');
     this.updateSyncBadge('Conectando...', true);
 
     try {
       const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const obj = await res.json();
-        if (obj && obj.data && obj.data.users && obj.data.users[userId]) {
-          const remoteData = obj.data.users[userId];
-          if (onMerge) {
+        if (obj && obj.data && obj.data[safeKey]) {
+          let remoteData = obj.data[safeKey];
+          if (typeof remoteData === 'string') {
+            try {
+              remoteData = JSON.parse(remoteData);
+            } catch(e) {}
+          }
+          if (remoteData && typeof remoteData === 'object' && onMerge) {
             onMerge(remoteData);
           }
           this.updateSyncBadge('Nube OK');

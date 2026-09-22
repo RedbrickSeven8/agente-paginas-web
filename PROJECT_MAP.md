@@ -4,11 +4,11 @@
 
 ```mermaid
 graph TD
-    User([Usuario Multi-dispositivo: iPhone, iPad, Mac]) --> WebApp[Studio Agent WebApp]
+    User([Usuario Multi-dispositivo: iPhone, iPad, Android, Mac, PC]) --> WebApp[Studio Agent WebApp]
     
-    subgraph UI_UX [UI / UX Apple-Centric Design]
+    subgraph UI_UX [UI / UX Apple-Centric & Mobile-First]
         Nav[Dynamic Island, Sync Badge & Navigation Bar]
-        ZenToggle[Zen Mode / Sidebar Toggle]
+        ZenToggle[Zen Mode / Mobile Sidebar Sheet Toggle]
         Sidebar[Barra Lateral: Proyectos, Carpetas, Chats, Tags & Pins]
         ChatArea[Área de Conversación con SSE Streaming & Live Step Timeline]
         InputDock[Smart Input: Slash / Commands, Attachment Dock & Prompts]
@@ -21,9 +21,9 @@ graph TD
         SettingsModal[Configuración de API & User ID Sync]
     end
 
-    subgraph Core_Engine [Motor de Lógica Frontend]
-        Store[Local Storage / Sync Engine con CRUD Atajos & Prompts]
-        CloudSync[Cloud Sync Engine con Multi-Device Polling & Auto-Push]
+    subgraph Core_Engine [Motor de Lógica Frontend & Persistencia]
+        Store[Local Storage & State Engine con Fallback de Proyectos]
+        CloudSync[Cloud Sync Engine con Multi-Device PATCH Polling & Auto-Push]
         DifyClient[Dify SSE Client & Action Humanizer]
         SlashHandler[Slash / Autocomplete & In-Place Cursor Inserter]
         FileEngine[Client Compressor & Multi-upload Manager]
@@ -32,7 +32,7 @@ graph TD
 
     subgraph Remote_Services [Servicios Remotos]
         DifyAPI[Dify API v1: /chat-messages, /files/upload, /messages]
-        CloudDB[Cloud Context Sync API: /objects Multi-device Store]
+        CloudDB[Cloud Context Sync API: /objects Multi-device Hub v2]
     end
 
     WebApp --> Nav
@@ -50,16 +50,18 @@ graph TD
     ChatArea --> DifyClient
     DifyClient <-->|SSE Stream / HTTPS| DifyAPI
     Store <--> CloudSync
-    CloudSync <-->|JSON REST Sync| CloudDB
+    CloudSync <-->|JSON REST PATCH Sync| CloudDB
     FileEngine -->|Upload| DifyAPI
     Store <--> WebApp
     ExportEngine <--> Store
 ```
 
 ## Componentes y Módulos
-1. **Cloud Multi-Device Sync Engine (`js/sync.js`):** Sincronización automática de proyectos, carpetas, chats, prompts y comandos entre todos los dispositivos que usen el mismo `User ID`.
-2. **Visualización En Vivo de Acciones del Agente:** Timeline de pasos humanizado con iconos y detalles contextuales (despliegue en Surge, sincronización en GitHub, descargas, scripts, etc.).
-3. **Side View Multi-Device Responsive:** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Celular (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
-4. **Smart Input & Slash Interceptor:** Inserción quirúrgica de atajos y prompts en la posición actual del cursor sin borrar el texto ingresado.
-5. **Biblioteca de Prompts & Gestor de Atajos (CRUD Completo):** Edición, creación y eliminación en tiempo real con persistencia en la nube.
-6. **Descarga de Carpetas y Proyectos en ZIP:** Empaquetado instantáneo con metadatos JSON y Markdown.
+1. **Multi-Device & Mobile Optimization (`css/style.css`, `index.html`, `js/app.js`):** Interfaz táctil adaptada para celulares con drawer deslizante, overlay, botones con visibilidad optimizada en pantallas táctiles y auto-cierre al cambiar de chat.
+2. **Cloud Multi-Device Sync Engine (`js/sync.js`):** Sincronización automática de proyectos, carpetas, chats, prompts y comandos entre todos los dispositivos que usen el mismo `User ID` mediante endpoints REST v2.
+3. **Gestión de Proyectos & Selección en Cualquier Pantalla (`js/state.js`, `js/app.js`):** Renderizado garantizado con valores por defecto resilientes, activación de proyectos mediante clic/touch y persistencia local/cloud.
+4. **Side View Multi-Device Responsive (`js/canvas.js`):** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Móvil (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
+5. **Timeline de Acciones del Agente en Vivo:** Visualización de pasos humanizados con iconos y detalles contextuales (despliegue en Surge, sincronización en GitHub, descargas, scripts, etc.).
+6. **Smart Input & Slash Interceptor:** Inserción quirúrgica de atajos y prompts en la posición actual del cursor sin borrar el texto ingresado.
+7. **Biblioteca de Prompts & Gestor de Atajos (CRUD Completo):** Edición, creación y eliminación en tiempo real con persistencia en la nube.
+8. **Descarga de Carpetas y Proyectos en ZIP:** Empaquetado instantáneo con metadatos JSON y Markdown.
