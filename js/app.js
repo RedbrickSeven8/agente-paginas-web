@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.setAttribute('data-theme', store.state.config.theme || 'dark');
 
   // --- Render Shortcuts Bar ---
-  function renderQuickShortcutsBar() {
+  window.renderQuickShortcutsBar = function renderQuickShortcutsBar() {
     if (!quickShortcutsBar) return;
     const commands = store.state.customCommands;
     quickShortcutsBar.innerHTML = `
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Render Functions ---
-  function renderSidebar() {
+  window.renderSidebar = function renderSidebar() {
     const projectsListEl = document.getElementById('projects-list');
     if (!projectsListEl) return;
 
@@ -220,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  function renderMessages() {
+  window.renderMessages = function renderMessages() {
     const activeChat = store.getActiveChat();
     chatMessagesEl.innerHTML = '';
 
@@ -1531,22 +1531,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Global Cloud Sync Observer for all UI modules
+// Global Cloud Sync Observer for all UI modules (Mac, iPad, iPhone, PC)
 if (window.appStore) {
   window.appStore.subscribe((state) => {
-    // If messages container exists, refresh active chat
-    const chatMsgEl = document.getElementById('chat-messages');
-    if (chatMsgEl) {
-      // If no messages or state changed, re-render
-      const activeChat = window.appStore.getActiveChat();
-      if (activeChat && activeChat.messages) {
-        // Only re-render if not actively streaming
-        const stopBtn = document.getElementById('btn-stop');
-        if (stopBtn && stopBtn.classList.contains('hidden')) {
-          if (typeof renderMessages === 'function') renderMessages();
-          if (typeof renderSidebar === 'function') renderSidebar();
-        }
-      }
+    if (typeof window.renderSidebar === 'function') window.renderSidebar();
+    
+    const stopBtn = document.getElementById('btn-stop');
+    const isStreaming = stopBtn && !stopBtn.classList.contains('hidden');
+    
+    if (!isStreaming && typeof window.renderMessages === 'function') {
+      window.renderMessages();
     }
   });
 }
