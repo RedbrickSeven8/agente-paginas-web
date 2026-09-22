@@ -58,9 +58,9 @@ graph TD
 ```
 
 ## Componentes y Módulos
-1. **GitHub Gist Cloud Sync Engine (`js/sync.js`):** Sincronización multi-dispositivo real, garantizada y persistente entre Mac, iPad, iPhone y otros dispositivos sin bloqueos por CORS ni errores de servidores terceros.
+1. **GitHub Gist Cloud Sync Engine (`js/sync.js`):** Sincronización multi-dispositivo real, garantizada y persistente entre Mac, iPad, iPhone y otros dispositivos.
 2. **Multi-Device & Mobile Optimization (`css/style.css`, `index.html`, `js/app.js`):** Interfaz táctil adaptada para celulares y tablets con drawer deslizante, overlay, botones con visibilidad optimizada en pantallas táctiles y auto-cierre al cambiar de chat.
-3. **Gestión de Proyectos & Selección en Cualquier Pantalla (`js/state.js`, `js/app.js`):** Renderizado garantizado con valores por defecto resilientes, activación de proyectos mediante clic/touch y reactividad en tiempo real cuando llegan datos de la nube.
+3. **Gestión de Proyectos & Selección en Cualquier Pantalla (`js/state.js`, `js/app.js`):** Renderizado garantizado y reactivo cuando llegan datos de la nube.
 4. **Modal Manager Accesible (`js/app.js`, `index.html`):** Botón de cierre visible en todos los modales (incluyendo búsqueda global), cierre al hacer clic en el backdrop oscuro y tecla `Escape`.
 5. **Side View Multi-Device Responsive (`js/canvas.js`):** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Móvil (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
 6. **Timeline de Acciones del Agente en Vivo:** Visualización de pasos humanizados con iconos y detalles contextuales.
