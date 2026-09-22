@@ -1,101 +1,98 @@
 // Cloud Sync & Multi-device Context Engine
 class CloudSyncService {
   constructor() {
+    this.HUB_OBJECT_ID = 'ff808181a09d98f701a0cb25b858739a';
     this.BASE_URL = 'https://api.restful-api.dev/objects';
     this.isSyncing = false;
     this.syncTimer = null;
-    this.pollInterval = 5000;
+    this.pollInterval = 4000; // Poll cloud every 4 seconds
+    this.lastSyncedHash = '';
   }
 
-  getStorageKey(userId) {
-    return 'studio_cloud_obj_' + (userId || 'studio_user_default');
+  getHash(data) {
+    try {
+      return JSON.stringify(data);
+    } catch(e) {
+      return '';
+    }
   }
 
-  getCloudId(userId) {
-    return localStorage.getItem(this.getStorageKey(userId)) || null;
-  }
-
-  setCloudId(userId, id) {
-    localStorage.setItem(this.getStorageKey(userId), id);
-  }
-
+  // Push local user workspace to the central shared cloud hub
   async pushState(state) {
     const userId = state.config.userId || 'studio_user_default';
     this.updateSyncBadge('Guardando en nube...', true);
 
-    const payload = {
-      name: `studio_workspace_${userId}`,
-      data: {
-        userId: userId,
-        projects: state.projects,
-        folders: state.folders,
-        chats: state.chats,
-        customCommands: state.customCommands,
-        promptTemplates: state.promptTemplates,
-        tags: state.tags,
-        tokenUsage: state.tokenUsage,
-        updatedAt: new Date().toISOString()
-      }
+    const userPayload = {
+      projects: state.projects || [],
+      folders: state.folders || [],
+      chats: state.chats || [],
+      customCommands: state.customCommands || [],
+      promptTemplates: state.promptTemplates || [],
+      tags: state.tags || [],
+      tokenUsage: state.tokenUsage || { total: 0, limit: 128000 },
+      updatedAt: new Date().toISOString()
     };
 
-    let cloudId = this.getCloudId(userId);
-
     try {
-      if (cloudId) {
-        const updateRes = await fetch(`${this.BASE_URL}/${cloudId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (updateRes.ok) {
-          this.updateSyncBadge('Sincronizado');
-          return;
+      // 1. Fetch current cloud state of all users
+      let currentHubData = { version: 2, users: {} };
+      const getRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`);
+      if (getRes.ok) {
+        const obj = await getRes.json();
+        if (obj && obj.data && typeof obj.data === 'object') {
+          currentHubData = obj.data;
+          if (!currentHubData.users) currentHubData.users = {};
         }
       }
 
-      // Create new Cloud Object for this user
-      const createRes = await fetch(this.BASE_URL, {
-        method: 'POST',
+      // 2. Update current user slice
+      currentHubData.users[userId] = userPayload;
+
+      // 3. Put updated hub back to cloud
+      const putRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          name: 'studio_workspace_hub_v1',
+          data: currentHubData
+        })
       });
 
-      if (createRes.ok) {
-        const created = await createRes.json();
-        this.setCloudId(userId, created.id);
+      if (putRes.ok) {
+        this.lastSyncedHash = this.getHash(userPayload);
         this.updateSyncBadge('Sincronizado');
+      } else {
+        this.updateSyncBadge('Error de red');
       }
     } catch (err) {
-      console.warn('Push sync error:', err);
+      console.warn('Sync push error:', err);
       this.updateSyncBadge('Modo local');
     }
   }
 
+  // Pull user workspace from central shared cloud hub
   async pullState(userId, onMerge) {
     if (!userId) return;
-    this.updateSyncBadge('Sincronizando...', true);
 
     try {
-      let cloudId = this.getCloudId(userId);
-      let remoteData = null;
-
-      if (cloudId) {
-        const res = await fetch(`${this.BASE_URL}/${cloudId}`);
-        if (res.ok) {
-          const obj = await res.json();
-          if (obj && obj.data) remoteData = obj.data;
+      const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`);
+      if (res.ok) {
+        const obj = await res.json();
+        if (obj && obj.data && obj.data.users && obj.data.users[userId]) {
+          const remoteUserWorkspace = obj.data.users[userId];
+          const newHash = this.getHash(remoteUserWorkspace);
+          
+          if (newHash !== this.lastSyncedHash) {
+            this.lastSyncedHash = newHash;
+            if (onMerge) onMerge(remoteUserWorkspace);
+          }
+          this.updateSyncBadge('Sincronizado');
+          return;
         }
       }
-
-      if (remoteData && onMerge) {
-        onMerge(remoteData);
-        this.updateSyncBadge('Sincronizado');
-      } else {
-        this.updateSyncBadge('Sincronizado');
-      }
+      this.updateSyncBadge('Sincronizado');
     } catch (err) {
-      console.warn('Pull sync error:', err);
+      console.warn('Sync pull error:', err);
       this.updateSyncBadge('Modo local');
     }
   }
@@ -117,7 +114,7 @@ class CloudSyncService {
     if (badge) {
       badge.innerHTML = `
         <span class="w-1.5 h-1.5 rounded-full ${isSpinning ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
-        <span class="text-[10px] text-neutral-400 font-medium">${text}</span>
+        <span class="text-[10px] text-neutral-300 font-mono">${text}</span>
       `;
     }
   }

@@ -1476,3 +1476,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// Global Cloud Sync Observer for all UI modules
+if (window.appStore) {
+  window.appStore.subscribe((state) => {
+    // If messages container exists, refresh active chat
+    const chatMsgEl = document.getElementById('chat-messages');
+    if (chatMsgEl) {
+      // If no messages or state changed, re-render
+      const activeChat = window.appStore.getActiveChat();
+      if (activeChat && activeChat.messages) {
+        // Only re-render if not actively streaming
+        const stopBtn = document.getElementById('btn-stop');
+        if (stopBtn && stopBtn.classList.contains('hidden')) {
+          if (typeof renderMessages === 'function') renderMessages();
+          if (typeof renderSidebar === 'function') renderSidebar();
+        }
+      }
+    }
+  });
+}

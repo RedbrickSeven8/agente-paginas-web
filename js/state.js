@@ -1,4 +1,4 @@
-// State Management for Studio Agent Client with Cloud Sync Engine
+// State Management for Studio Agent Client with Universal Cloud Sync
 class Store {
   constructor() {
     this.STORAGE_KEY = 'studio_agent_data_v1';
@@ -13,7 +13,7 @@ class Store {
       config: {
         apiUrl: 'https://api.dify.ai/v1',
         apiKey: 'app-CSpN9ANweE2UjmdYvMqjURaF',
-        userId: 'studio_user_default', // Fixed standard default user ID for seamless out-of-the-box multi-device sync
+        userId: 'studio_user_default',
         theme: 'dark',
         zenMode: false
       },
@@ -90,7 +90,7 @@ class Store {
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
           window.cloudSyncService.pushState(this.state);
-        }, 1000);
+        }, 800);
       }
     } catch (e) {
       console.error('Error saving state:', e);
@@ -98,27 +98,26 @@ class Store {
   }
 
   initSync() {
+    // Inmediatamente al cargar la página en cualquier dispositivo, sincronizar con la nube
     setTimeout(async () => {
       if (window.cloudSyncService) {
-        // Initial cloud pull
         await window.cloudSyncService.pullState(this.state.config.userId, (remoteData) => {
           this.mergeRemoteData(remoteData);
         });
 
-        // Start background synchronization polling
+        // Iniciar sondeo continuo
         window.cloudSyncService.startPolling(
           () => this.state.config.userId,
           (remoteData) => this.mergeRemoteData(remoteData)
         );
       }
-    }, 500);
+    }, 100);
   }
 
   mergeRemoteData(remote) {
     if (!remote) return;
     let hasChanges = false;
 
-    // Merge Projects
     if (Array.isArray(remote.projects)) {
       if (JSON.stringify(this.state.projects) !== JSON.stringify(remote.projects)) {
         this.state.projects = remote.projects;
@@ -126,7 +125,6 @@ class Store {
       }
     }
 
-    // Merge Folders
     if (Array.isArray(remote.folders)) {
       if (JSON.stringify(this.state.folders) !== JSON.stringify(remote.folders)) {
         this.state.folders = remote.folders;
@@ -134,7 +132,6 @@ class Store {
       }
     }
 
-    // Merge Chats & Messages
     if (Array.isArray(remote.chats)) {
       if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
         this.state.chats = remote.chats;
@@ -145,7 +142,6 @@ class Store {
       }
     }
 
-    // Merge Custom Commands / Atajos
     if (Array.isArray(remote.customCommands) && remote.customCommands.length > 0) {
       if (JSON.stringify(this.state.customCommands) !== JSON.stringify(remote.customCommands)) {
         this.state.customCommands = remote.customCommands;
@@ -153,7 +149,6 @@ class Store {
       }
     }
 
-    // Merge Prompt Templates
     if (Array.isArray(remote.promptTemplates) && remote.promptTemplates.length > 0) {
       if (JSON.stringify(this.state.promptTemplates) !== JSON.stringify(remote.promptTemplates)) {
         this.state.promptTemplates = remote.promptTemplates;
@@ -162,8 +157,8 @@ class Store {
     }
 
     if (hasChanges) {
-      this.save(true); // save to localStorage without triggering loop
-      this.addLog('info', 'Contexto y datos sincronizados desde la nube.');
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+      this.notify();
     }
   }
 
