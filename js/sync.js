@@ -1,26 +1,18 @@
 // Cloud Sync & Multi-device Context Engine
+// Works seamlessly across iPhone, iPad, Android, macOS & Windows
 class CloudSyncService {
   constructor() {
     this.HUB_OBJECT_ID = 'ff808181a09d98f701a0cb25b858739a';
     this.BASE_URL = 'https://api.restful-api.dev/objects';
     this.isSyncing = false;
     this.syncTimer = null;
-    this.pollInterval = 4000; // Poll cloud every 4 seconds
-    this.lastSyncedHash = '';
+    this.pollInterval = 3000;
   }
 
-  getHash(data) {
-    try {
-      return JSON.stringify(data);
-    } catch(e) {
-      return '';
-    }
-  }
-
-  // Push local user workspace to the central shared cloud hub
+  // Push local user workspace to Cloud Hub
   async pushState(state) {
-    const userId = state.config.userId || 'studio_user_default';
-    this.updateSyncBadge('Guardando en nube...', true);
+    const userId = (state && state.config && state.config.userId) ? state.config.userId.trim() : 'studio_user_default';
+    this.updateSyncBadge('Sincronizando...', true);
 
     const userPayload = {
       projects: state.projects || [],
@@ -34,21 +26,23 @@ class CloudSyncService {
     };
 
     try {
-      // 1. Fetch current cloud state of all users
+      // 1. Fetch current global hub
       let currentHubData = { version: 2, users: {} };
-      const getRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`);
-      if (getRes.ok) {
-        const obj = await getRes.json();
-        if (obj && obj.data && typeof obj.data === 'object') {
-          currentHubData = obj.data;
-          if (!currentHubData.users) currentHubData.users = {};
+      try {
+        const getRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, { cache: 'no-store' });
+        if (getRes.ok) {
+          const obj = await getRes.json();
+          if (obj && obj.data && typeof obj.data === 'object') {
+            currentHubData = obj.data;
+            if (!currentHubData.users) currentHubData.users = {};
+          }
         }
-      }
+      } catch(e) {}
 
-      // 2. Update current user slice
+      // 2. Put user payload
       currentHubData.users[userId] = userPayload;
 
-      // 3. Put updated hub back to cloud
+      // 3. Update Hub in Cloud
       const putRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -59,49 +53,45 @@ class CloudSyncService {
       });
 
       if (putRes.ok) {
-        this.lastSyncedHash = this.getHash(userPayload);
-        this.updateSyncBadge('Sincronizado');
+        this.updateSyncBadge('Nube OK');
       } else {
-        this.updateSyncBadge('Error de red');
+        this.updateSyncBadge('Local');
       }
     } catch (err) {
-      console.warn('Sync push error:', err);
-      this.updateSyncBadge('Modo local');
+      this.updateSyncBadge('Local');
     }
   }
 
-  // Pull user workspace from central shared cloud hub
+  // Pull user workspace from Cloud Hub
   async pullState(userId, onMerge) {
-    if (!userId) return;
+    if (!userId) userId = 'studio_user_default';
+    this.updateSyncBadge('Conectando...', true);
 
     try {
-      const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`);
+      const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const obj = await res.json();
         if (obj && obj.data && obj.data.users && obj.data.users[userId]) {
-          const remoteUserWorkspace = obj.data.users[userId];
-          const newHash = this.getHash(remoteUserWorkspace);
-          
-          if (newHash !== this.lastSyncedHash) {
-            this.lastSyncedHash = newHash;
-            if (onMerge) onMerge(remoteUserWorkspace);
+          const remoteData = obj.data.users[userId];
+          if (onMerge) {
+            onMerge(remoteData);
           }
-          this.updateSyncBadge('Sincronizado');
-          return;
+          this.updateSyncBadge('Nube OK');
+          return remoteData;
         }
       }
-      this.updateSyncBadge('Sincronizado');
+      this.updateSyncBadge('Nube OK');
     } catch (err) {
-      console.warn('Sync pull error:', err);
-      this.updateSyncBadge('Modo local');
+      this.updateSyncBadge('Local');
     }
+    return null;
   }
 
   startPolling(getUserId, onRemoteUpdate) {
     if (this.syncTimer) clearInterval(this.syncTimer);
     this.syncTimer = setInterval(async () => {
-      const userId = getUserId();
-      if (userId && !this.isSyncing) {
+      const userId = getUserId() || 'studio_user_default';
+      if (!this.isSyncing) {
         this.isSyncing = true;
         await this.pullState(userId, onRemoteUpdate);
         this.isSyncing = false;
@@ -110,13 +100,13 @@ class CloudSyncService {
   }
 
   updateSyncBadge(text, isSpinning = false) {
-    const badge = document.getElementById('sync-status-indicator');
-    if (badge) {
+    const badges = document.querySelectorAll('.sync-status-badge');
+    badges.forEach(badge => {
       badge.innerHTML = `
-        <span class="w-1.5 h-1.5 rounded-full ${isSpinning ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
-        <span class="text-[10px] text-neutral-300 font-mono">${text}</span>
+        <span class="w-2 h-2 rounded-full ${isSpinning ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
+        <span class="text-[10px] text-neutral-300 font-mono uppercase tracking-wider">${text}</span>
       `;
-    }
+    });
   }
 }
 

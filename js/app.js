@@ -1496,3 +1496,60 @@ if (window.appStore) {
     }
   });
 }
+
+// Mobile Sidebar Drawer Controller
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const btnZen = document.getElementById('btn-zen-mode');
+  const btnCloseMobile = document.getElementById('btn-close-mobile-sidebar');
+
+  function openMobileSidebar() {
+    sidebar.classList.remove('-translate-x-full');
+    backdrop.classList.remove('hidden');
+  }
+
+  function closeMobileSidebar() {
+    sidebar.classList.add('-translate-x-full');
+    backdrop.classList.add('hidden');
+  }
+
+  if (btnZen) {
+    btnZen.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.innerWidth < 768) {
+        if (sidebar.classList.contains('-translate-x-full')) {
+          openMobileSidebar();
+        } else {
+          closeMobileSidebar();
+        }
+      } else {
+        sidebar.classList.toggle('md:hidden');
+      }
+    });
+  }
+
+  if (btnCloseMobile) {
+    btnCloseMobile.addEventListener('click', closeMobileSidebar);
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeMobileSidebar);
+  }
+
+  // Mobile footer shortcut triggers
+  document.getElementById('btn-open-prompts-mobile')?.addEventListener('click', () => {
+    closeMobileSidebar();
+    modals.prompts?.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-open-export-mobile')?.addEventListener('click', () => {
+    closeMobileSidebar();
+    if (typeof renderExportModal === 'function') renderExportModal();
+    modals.export?.classList.remove('hidden');
+  });
+
+  document.getElementById('btn-top-sync-trigger')?.addEventListener('click', () => {
+    modals.settings?.classList.remove('hidden');
+  });
+});

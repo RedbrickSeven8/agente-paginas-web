@@ -1,39 +1,30 @@
-/* Apple-Centric & OLED True Black Styling */
+/* Apple-Centric Design & Responsive Mobile-First Architecture */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
   
   --bg-primary: #000000;
-  --bg-secondary: #0a0a0c;
-  --bg-surface: #121216;
-  --bg-surface-hover: #1a1a20;
-  --bg-glass: rgba(18, 18, 22, 0.75);
-  --border-glass: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  
+  --bg-secondary: #09090b;
+  --bg-surface: #121215;
+  --bg-glass: rgba(18, 18, 22, 0.85);
+  --border-glass: rgba(255, 255, 255, 0.1);
   --text-primary: #f5f5f7;
-  --text-secondary: #86868b;
-  --text-muted: #515154;
-  
-  --accent-apple: #2997ff;
-  --accent-purple: #af52de;
-  --accent-emerald: #30d158;
-  --accent-amber: #ff9f0a;
-  --accent-rose: #ff453a;
+  --text-secondary: #8e8e93;
 }
 
 [data-theme="light"] {
-  --bg-primary: #fbfbfd;
-  --bg-secondary: #f2f2f7;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #e5e5ea;
-  --bg-glass: rgba(255, 255, 255, 0.82);
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-surface: #f0f0f4;
+  --bg-glass: rgba(255, 255, 255, 0.9);
   --border-glass: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
-  --text-muted: #86868b;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -43,46 +34,38 @@ body {
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Glassmorphism Classes */
+/* Glassmorphism */
 .apple-glass {
   background: var(--bg-glass);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
   border: 1px solid var(--border-glass);
 }
 
 .apple-glass-heavy {
-  background: rgba(10, 10, 12, 0.92);
+  background: rgba(12, 12, 15, 0.96);
   backdrop-filter: blur(32px) saturate(200%);
   -webkit-backdrop-filter: blur(32px) saturate(200%);
   border: 1px solid var(--border-glass);
 }
 
-/* Dynamic Island Micro-pill */
-.dynamic-island {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.dynamic-island:hover {
-  transform: scale(1.02);
-}
-
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Diff Slider Container */
@@ -117,17 +100,36 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-/* Syntax Highlight customization */
-pre code.hljs {
-  padding: 1rem;
-  background: #0d0d11 !important;
+/* Markdown styling inside bubbles */
+.markdown-body {
+  word-break: break-word;
+}
+.markdown-body p {
+  margin-bottom: 0.6em;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body pre {
+  margin: 0.6em 0;
   border-radius: 0.75rem;
+  overflow-x: auto;
+}
+.markdown-body code {
   font-family: var(--font-mono);
-  font-size: 0.84rem;
-  line-height: 1.5;
+  font-size: 0.85em;
+}
+.markdown-body a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.markdown-body a:hover {
+  color: #60a5fa;
 }
 
-/* Pulse Glow */
+/* Pulse animation */
 @keyframes apple-pulse {
   0%, 100% { opacity: 0.4; transform: scale(1); }
   50% { opacity: 0.8; transform: scale(1.05); }

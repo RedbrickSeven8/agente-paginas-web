@@ -1,4 +1,4 @@
-// State Management for Studio Agent Client with Universal Cloud Sync
+// State Management for Studio Agent Client
 class Store {
   constructor() {
     this.STORAGE_KEY = 'studio_agent_data_v1';
@@ -52,27 +52,16 @@ class Store {
         const parsed = JSON.parse(saved);
         const defaults = this.getDefaults();
         
-        let commands = parsed.customCommands || defaults.customCommands;
-        commands = commands.map((c, i) => ({
-          id: c.id || `cmd_${Date.now()}_${i}`,
-          name: c.name.startsWith('/') ? c.name : `/${c.name}`,
-          desc: c.desc || '',
-          icon: c.icon || 'terminal'
-        }));
-
-        let prompts = parsed.promptTemplates || defaults.promptTemplates;
-        prompts = prompts.map((p, i) => ({
-          id: p.id || `prompt_${Date.now()}_${i}`,
-          title: p.title || 'Plantilla',
-          text: p.text || ''
-        }));
+        // Force unified default user ID if not explicitly set
+        const config = { ...defaults.config, ...(parsed.config || {}) };
+        if (!config.userId || config.userId.startsWith('user-')) {
+          config.userId = 'studio_user_default';
+        }
 
         return {
           ...defaults,
           ...parsed,
-          customCommands: commands,
-          promptTemplates: prompts,
-          config: { ...defaults.config, ...(parsed.config || {}) }
+          config
         };
       }
     } catch (e) {
@@ -90,7 +79,7 @@ class Store {
         clearTimeout(this.debounceTimer);
         this.debounceTimer = setTimeout(() => {
           window.cloudSyncService.pushState(this.state);
-        }, 800);
+        }, 500);
       }
     } catch (e) {
       console.error('Error saving state:', e);
@@ -98,26 +87,32 @@ class Store {
   }
 
   initSync() {
-    // Inmediatamente al cargar la página en cualquier dispositivo, sincronizar con la nube
-    setTimeout(async () => {
+    // Immediate pull on load
+    const doSync = async () => {
       if (window.cloudSyncService) {
         await window.cloudSyncService.pullState(this.state.config.userId, (remoteData) => {
           this.mergeRemoteData(remoteData);
         });
 
-        // Iniciar sondeo continuo
         window.cloudSyncService.startPolling(
           () => this.state.config.userId,
           (remoteData) => this.mergeRemoteData(remoteData)
         );
       }
-    }, 100);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', doSync);
+    } else {
+      doSync();
+    }
   }
 
   mergeRemoteData(remote) {
     if (!remote) return;
     let hasChanges = false;
 
+    // Check Projects
     if (Array.isArray(remote.projects)) {
       if (JSON.stringify(this.state.projects) !== JSON.stringify(remote.projects)) {
         this.state.projects = remote.projects;
@@ -125,6 +120,7 @@ class Store {
       }
     }
 
+    // Check Folders
     if (Array.isArray(remote.folders)) {
       if (JSON.stringify(this.state.folders) !== JSON.stringify(remote.folders)) {
         this.state.folders = remote.folders;
@@ -132,6 +128,7 @@ class Store {
       }
     }
 
+    // Check Chats
     if (Array.isArray(remote.chats)) {
       if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
         this.state.chats = remote.chats;
@@ -142,6 +139,7 @@ class Store {
       }
     }
 
+    // Check Commands
     if (Array.isArray(remote.customCommands) && remote.customCommands.length > 0) {
       if (JSON.stringify(this.state.customCommands) !== JSON.stringify(remote.customCommands)) {
         this.state.customCommands = remote.customCommands;
@@ -149,6 +147,7 @@ class Store {
       }
     }
 
+    // Check Prompts
     if (Array.isArray(remote.promptTemplates) && remote.promptTemplates.length > 0) {
       if (JSON.stringify(this.state.promptTemplates) !== JSON.stringify(remote.promptTemplates)) {
         this.state.promptTemplates = remote.promptTemplates;
