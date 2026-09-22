@@ -177,6 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function formatTextWithLinks(rawContent) {
+    let parsed = marked.parse(rawContent || '');
+    // Convert plain URLs that might have been missed
+    const urlRegex = /(https?:\/\/[^\s<>"'\)]+)/gi;
+    return parsed;
+  }
+
   function renderMessages() {
     const activeChat = store.getActiveChat();
     chatMessagesEl.innerHTML = '';
@@ -280,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
-    let parsedContent = marked.parse(msg.content || '');
+    let parsedContent = formatTextWithLinks(msg.content || '');
 
     msgEl.innerHTML = `
       <div class="flex items-center space-x-2 mb-1 text-[11px] text-neutral-400">
@@ -304,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${!isUser ? `
           <button class="btn-open-canvas text-[11px] hover:text-blue-400 flex items-center space-x-1" data-msg-id="${msg.id}">
             <i data-lucide="sidebar" class="w-3 h-3"></i>
-            <span>Ver Canvas</span>
+            <span>Ver Side View</span>
           </button>
         ` : `
           <button class="btn-edit-msg text-[11px] hover:text-blue-400 flex items-center space-x-1" data-msg-id="${msg.id}">
@@ -347,7 +354,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let start = cursorPos;
     let end = chatInputEl.selectionEnd;
 
-    // If triggered by slash, replace from where slash was typed
     if (triggerCharIndex !== -1 && triggerCharIndex < cursorPos) {
       start = triggerCharIndex;
     }
@@ -355,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const before = text.substring(0, start);
     const after = text.substring(end);
 
-    // Ensure nice spacing
     const formattedInsert = textToInsert.endsWith(' ') ? textToInsert : textToInsert + ' ';
     chatInputEl.value = before + formattedInsert + after;
     
@@ -363,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chatInputEl.focus();
     chatInputEl.setSelectionRange(newPos, newPos);
 
-    // Auto resize
     chatInputEl.style.height = 'auto';
     chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 180) + 'px';
 
@@ -438,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSidebar();
         updateTokenCounter();
 
+        // Check for HTML artifacts to render
         if (content && (content.includes('<!DOCTYPE html>') || content.includes('<html') || content.includes('```html'))) {
           const match = content.match(/```html([\s\S]*?)```/);
           const rawHtml = match ? match[1] : (content.includes('<html') ? content : null);
@@ -466,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const mdBody = el.querySelector('.markdown-body');
     if (mdBody) {
-      mdBody.innerHTML = marked.parse(content || '');
+      mdBody.innerHTML = formatTextWithLinks(content || '');
     }
     scrollToBottom();
   }
@@ -521,7 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (lastSlashIndex !== -1) {
       const queryPart = textBeforeCursor.substring(lastSlashIndex);
-      // Valid slash command trigger if no spaces after slash
       if (!queryPart.includes(' ') && !queryPart.includes('\n')) {
         slashTriggerIndex = lastSlashIndex;
         const query = queryPart.toLowerCase();
@@ -643,6 +647,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delegated Clicks
   document.addEventListener('click', (e) => {
+    // Intercept chat message link click to open cleanly in Side View
+    const chatLink = e.target.closest('#chat-messages a');
+    if (chatLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      let rawHref = chatLink.getAttribute('href') || chatLink.href;
+      if (rawHref) {
+        let clean = canvas.cleanUrl(rawHref);
+        canvas.open('preview', clean);
+      }
+      return;
+    }
+
     // Slash item click
     const slashItem = e.target.closest('.slash-item');
     if (slashItem) {
@@ -651,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Insert shortcut from bar (inserts at cursor without erasing!)
+    // Insert shortcut from bar
     const insertShortcutBtn = e.target.closest('.btn-insert-shortcut');
     if (insertShortcutBtn) {
       const cmd = insertShortcutBtn.dataset.cmd;
@@ -666,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Quick Prompt Card click (initial empty state)
+    // Quick Prompt Card click
     const promptCard = e.target.closest('.quick-prompt-card');
     if (promptCard) {
       insertTextAtCursor(promptCard.dataset.prompt);
@@ -810,14 +827,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Open Canvas from message
+    // Open Canvas from message button
     const openCanvasBtn = e.target.closest('.btn-open-canvas');
     if (openCanvasBtn) {
       const msgId = openCanvasBtn.dataset.msgId;
       const chat = store.getActiveChat();
       const msg = chat?.messages.find(m => m.id === msgId);
       if (msg) {
+        const urlMatch = msg.content.match(/(https?:\/\/[^\s<>"'\)]+)/i);
         const codeMatch = msg.content.match(/```(\w+)?\n([\s\S]*?)```/);
+        
         if (codeMatch) {
           const lang = codeMatch[1] || 'html';
           const code = codeMatch[2];
@@ -826,8 +845,11 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             canvas.open('code', { code, lang });
           }
+        } else if (urlMatch) {
+          const targetUrl = canvas.cleanUrl(urlMatch[1]);
+          canvas.open('preview', targetUrl);
         } else {
-          canvas.open('preview', `<div style="font-family:sans-serif;padding:2rem;color:#111;">${marked.parse(msg.content)}</div>`);
+          canvas.open('preview', `<div style="font-family:sans-serif;padding:2rem;color:#111;">${formatTextWithLinks(msg.content)}</div>`);
         }
       }
       return;
@@ -965,14 +987,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!name) return;
 
     if (id) {
-      // Update
       store.updateCommand(id, { name, desc });
     } else {
-      // Add
       store.addCommand(name, desc);
     }
 
-    // Reset Form
     inputCmdId.value = '';
     inputCmdName.value = '';
     inputCmdDesc.value = '';
@@ -992,7 +1011,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('click', (e) => {
-    // Delete Command
     const delCmd = e.target.closest('.btn-del-custom-cmd');
     if (delCmd) {
       const id = delCmd.dataset.id;
@@ -1004,7 +1022,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Edit Command
     const editCmd = e.target.closest('.btn-edit-custom-cmd');
     if (editCmd) {
       const id = editCmd.dataset.id;
@@ -1090,7 +1107,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('click', (e) => {
-    // Use prompt in chat (INSERTS AT CURSOR WITHOUT ERASING)
     const usePrompt = e.target.closest('.btn-use-prompt');
     if (usePrompt) {
       insertTextAtCursor(usePrompt.dataset.text);
@@ -1098,7 +1114,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Delete Prompt
     const delPrompt = e.target.closest('.btn-del-prompt');
     if (delPrompt) {
       const id = delPrompt.dataset.id;
@@ -1109,7 +1124,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Edit Prompt
     const editPrompt = e.target.closest('.btn-edit-prompt');
     if (editPrompt) {
       const id = editPrompt.dataset.id;
@@ -1201,7 +1215,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const projNameClean = project.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     const rootZip = zip.folder(projNameClean);
 
-    // Root standalone chats
     const rootChats = chats.filter(c => !c.folderId);
     rootChats.forEach(c => {
       let md = `# ${c.title}\n\n*Proyecto: ${project.name}*\n*Fecha: ${new Date(c.createdAt).toLocaleString()}*\n\n---\n\n`;
@@ -1211,7 +1224,6 @@ document.addEventListener('DOMContentLoaded', () => {
       rootZip.file(`${c.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`, md);
     });
 
-    // Subfolders
     folders.forEach(f => {
       const fFolder = rootZip.folder(f.name.replace(/[^a-zA-Z0-9_-]/g, '_'));
       const fChats = chats.filter(c => c.folderId === f.id);
@@ -1381,6 +1393,29 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('tab-btn-code')?.addEventListener('click', () => { canvas.currentMode = 'code'; canvas.updateTabs(); });
   document.getElementById('tab-btn-assets')?.addEventListener('click', () => { canvas.currentMode = 'assets'; canvas.updateTabs(); });
 
+  const btnToggleSideView = document.getElementById('btn-toggle-side-view');
+  if (btnToggleSideView) {
+    btnToggleSideView.addEventListener('click', () => {
+      canvas.toggle();
+    });
+  }
+
+  const btnRefreshPreview = document.getElementById('btn-refresh-preview');
+  if (btnRefreshPreview) {
+    btnRefreshPreview.addEventListener('click', () => {
+      canvas.renderPreview(canvas.currentContent);
+    });
+  }
+
+  // Handle iframe load errors gracefully
+  const previewFrame = document.getElementById('canvas-preview-frame');
+  const fallbackBanner = document.getElementById('iframe-fallback-banner');
+  if (previewFrame && fallbackBanner) {
+    previewFrame.addEventListener('error', () => {
+      fallbackBanner.classList.remove('hidden');
+    });
+  }
+
   function escapeHtml(text) {
     if (!text) return '';
     return text.toString()
@@ -1396,32 +1431,4 @@ document.addEventListener('DOMContentLoaded', () => {
   renderMessages();
   renderQuickShortcutsBar();
   updateTokenCounter();
-});
-
-// Side View Toggle Button Handler
-document.addEventListener('DOMContentLoaded', () => {
-  const btnToggleSideView = document.getElementById('btn-toggle-side-view');
-  if (btnToggleSideView && window.canvasManager) {
-    btnToggleSideView.addEventListener('click', () => {
-      window.canvasManager.toggle();
-    });
-  }
-  const btnRefreshPreview = document.getElementById('btn-refresh-preview');
-  if (btnRefreshPreview && window.canvasManager) {
-    btnRefreshPreview.addEventListener('click', () => {
-      window.canvasManager.renderPreview(window.canvasManager.currentContent);
-    });
-  }
-});
-
-// Intercept all links inside chat messages to open in Side View
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('#chat-messages a');
-  if (link && link.href) {
-    e.preventDefault();
-    const targetUrl = link.href;
-    if (window.canvasManager) {
-      window.canvasManager.open('preview', targetUrl);
-    }
-  }
 });

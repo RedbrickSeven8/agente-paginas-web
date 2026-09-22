@@ -43,6 +43,20 @@ class CanvasManager {
     });
   }
 
+  cleanUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    let cleaned = url.trim();
+    // Limpiar caracteres de puntuación o markdown al final ej: ), ., ,, ], *, ", '
+    cleaned = cleaned.replace(/[),.;\]\*"'>]+$/, '');
+    return cleaned;
+  }
+
+  isHttpUrl(str) {
+    if (!str || typeof str !== 'string') return false;
+    const clean = this.cleanUrl(str);
+    return /^https?:\/\//i.test(clean);
+  }
+
   open(type = 'preview', payload = null) {
     this.isOpen = true;
     this.currentMode = type;
@@ -143,17 +157,31 @@ class CanvasManager {
     this.currentContent = htmlOrUrl;
     const frame = document.getElementById('canvas-preview-frame');
     const urlBar = document.getElementById('preview-url-bar');
+    const externalLinkBtn = document.getElementById('btn-open-external-preview');
+    const fallbackBanner = document.getElementById('iframe-fallback-banner');
     if (!frame) return;
 
-    if (typeof htmlOrUrl === 'string' && (htmlOrUrl.startsWith('http://') || htmlOrUrl.startsWith('https://'))) {
-      frame.src = htmlOrUrl;
+    if (fallbackBanner) fallbackBanner.classList.add('hidden');
+
+    if (this.isHttpUrl(htmlOrUrl)) {
+      const cleanUrl = this.cleanUrl(htmlOrUrl);
+      this.currentContent = cleanUrl;
+      frame.removeAttribute('srcdoc');
+      frame.src = cleanUrl;
+
       if (urlBar) {
-        urlBar.textContent = htmlOrUrl;
-        urlBar.title = htmlOrUrl;
+        urlBar.textContent = cleanUrl;
+        urlBar.title = cleanUrl;
+      }
+      if (externalLinkBtn) {
+        externalLinkBtn.href = cleanUrl;
+        externalLinkBtn.classList.remove('hidden');
       }
     } else {
-      const blob = new Blob([htmlOrUrl], { type: 'text/html' });
-      frame.src = URL.createObjectURL(blob);
+      // Direct raw HTML code rendering
+      if (externalLinkBtn) externalLinkBtn.classList.add('hidden');
+      frame.removeAttribute('src');
+      frame.srcdoc = htmlOrUrl;
       if (urlBar) urlBar.textContent = 'preview.local/rendered-artifact';
     }
   }
