@@ -16,7 +16,7 @@ graph TD
         Debugger[Floating Debugger: Logs de Consola y API Dify]
         CmdModal[Modal Gestor CRUD de Comandos y Atajos]
         PromptModal[Modal Gestor CRUD de Biblioteca de Prompts]
-        SearchModal[Cmd+K Búsqueda Global Filtrada]
+        SearchModal[Modal Búsqueda Global con Botón de Cierre & Esc]
         ExportModal[Descarga de Carpetas ZIP y Exportación de Workspace]
         SettingsModal[Configuración de API & User ID Sync]
     end
@@ -32,7 +32,7 @@ graph TD
 
     subgraph Remote_Services [Servicios Remotos]
         DifyAPI[Dify API v1: /chat-messages, /files/upload, /messages]
-        CloudDB[Cloud Context Sync API: /objects Multi-device Hub v2]
+        CloudDB[Cloud Context Sync Hub v2: RESTful PATCH User Data Store]
     end
 
     WebApp --> Nav
@@ -43,6 +43,7 @@ graph TD
     WebApp --> Debugger
     WebApp --> CmdModal
     WebApp --> PromptModal
+    WebApp --> SearchModal
     WebApp --> ExportModal
 
     InputDock --> SlashHandler
@@ -58,10 +59,11 @@ graph TD
 
 ## Componentes y Módulos
 1. **Multi-Device & Mobile Optimization (`css/style.css`, `index.html`, `js/app.js`):** Interfaz táctil adaptada para celulares con drawer deslizante, overlay, botones con visibilidad optimizada en pantallas táctiles y auto-cierre al cambiar de chat.
-2. **Cloud Multi-Device Sync Engine (`js/sync.js`):** Sincronización automática de proyectos, carpetas, chats, prompts y comandos entre todos los dispositivos que usen el mismo `User ID` mediante endpoints REST v2.
+2. **Cloud Multi-Device Sync Engine (`js/sync.js`):** Sincronización automática de proyectos, carpetas, chats, prompts y comandos entre todos los dispositivos que usen el mismo `User ID` mediante endpoints REST v2 PATCH optimizados.
 3. **Gestión de Proyectos & Selección en Cualquier Pantalla (`js/state.js`, `js/app.js`):** Renderizado garantizado con valores por defecto resilientes, activación de proyectos mediante clic/touch y persistencia local/cloud.
-4. **Side View Multi-Device Responsive (`js/canvas.js`):** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Móvil (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
-5. **Timeline de Acciones del Agente en Vivo:** Visualización de pasos humanizados con iconos y detalles contextuales (despliegue en Surge, sincronización en GitHub, descargas, scripts, etc.).
-6. **Smart Input & Slash Interceptor:** Inserción quirúrgica de atajos y prompts en la posición actual del cursor sin borrar el texto ingresado.
-7. **Biblioteca de Prompts & Gestor de Atajos (CRUD Completo):** Edición, creación y eliminación en tiempo real con persistencia en la nube.
-8. **Descarga de Carpetas y Proyectos en ZIP:** Empaquetado instantáneo con metadatos JSON y Markdown.
+4. **Modal Manager Accesible (`js/app.js`, `index.html`):** Botón de cierre visible en todos los modales (incluyendo búsqueda global), cierre al hacer clic en el backdrop oscuro y tecla `Escape`.
+5. **Side View Multi-Device Responsive (`js/canvas.js`):** Previsualización en iframe con resoluciones Desktop (100%), Tablet (768px) y Móvil (375px), botón para colapsar/mostrar e intercepción de enlaces del chat.
+6. **Timeline de Acciones del Agente en Vivo:** Visualización de pasos humanizados con iconos y detalles contextuales.
+7. **Smart Input & Slash Interceptor:** Inserción quirúrgica de atajos y prompts en la posición actual del cursor sin borrar el texto ingresado.
+8. **Biblioteca de Prompts & Gestor de Atajos (CRUD Completo):** Edición, creación y eliminación en tiempo real con persistencia en la nube.
+9. **Descarga de Carpetas y Proyectos en ZIP:** Empaquetado instantáneo con metadatos JSON y Markdown.

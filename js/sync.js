@@ -13,7 +13,7 @@ class CloudSyncService {
   async pushState(state) {
     const rawUserId = (state && state.config && state.config.userId) ? state.config.userId.trim() : 'studio_user_default';
     const safeKey = 'user_' + rawUserId.replace(/[^a-zA-Z0-9_]/g, '_');
-    this.updateSyncBadge('Sincronizando...', true);
+    this.updateSyncBadge('Guardando...', true);
 
     const userPayload = {
       projects: state.projects || [],
@@ -37,17 +37,24 @@ class CloudSyncService {
 
       const patchRes = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(patchData)
       });
 
       if (patchRes.ok) {
-        this.updateSyncBadge('Nube OK');
+        this.updateSyncBadge('Nube OK', false);
+        return true;
       } else {
-        this.updateSyncBadge('Local');
+        this.updateSyncBadge('Local', false);
+        return false;
       }
     } catch (err) {
-      this.updateSyncBadge('Local');
+      console.warn('Cloud sync push error:', err);
+      this.updateSyncBadge('Local', false);
+      return false;
     }
   }
 
@@ -55,10 +62,14 @@ class CloudSyncService {
   async pullState(userId, onMerge) {
     if (!userId) userId = 'studio_user_default';
     const safeKey = 'user_' + userId.replace(/[^a-zA-Z0-9_]/g, '_');
-    this.updateSyncBadge('Conectando...', true);
 
     try {
-      const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}?_t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`${this.BASE_URL}/${this.HUB_OBJECT_ID}?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
       if (res.ok) {
         const obj = await res.json();
         if (obj && obj.data && obj.data[safeKey]) {
@@ -66,18 +77,23 @@ class CloudSyncService {
           if (typeof remoteData === 'string') {
             try {
               remoteData = JSON.parse(remoteData);
-            } catch(e) {}
+            } catch(e) {
+              console.error('Error parsing remote data string:', e);
+            }
           }
-          if (remoteData && typeof remoteData === 'object' && onMerge) {
-            onMerge(remoteData);
+          if (remoteData && typeof remoteData === 'object') {
+            if (onMerge) {
+              onMerge(remoteData);
+            }
+            this.updateSyncBadge('Nube OK', false);
+            return remoteData;
           }
-          this.updateSyncBadge('Nube OK');
-          return remoteData;
         }
       }
-      this.updateSyncBadge('Nube OK');
+      this.updateSyncBadge('Nube OK', false);
     } catch (err) {
-      this.updateSyncBadge('Local');
+      console.warn('Cloud sync pull error:', err);
+      this.updateSyncBadge('Local', false);
     }
     return null;
   }
@@ -98,7 +114,7 @@ class CloudSyncService {
     const badges = document.querySelectorAll('.sync-status-badge');
     badges.forEach(badge => {
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full ${isSpinning ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
+        <span class="w-2 h-2 rounded-full ${isSpinning ? 'bg-amber-400 animate-ping' : (text.includes('Error') ? 'bg-red-400' : 'bg-emerald-400')}"></span>
         <span class="text-[10px] text-neutral-300 font-mono uppercase tracking-wider">${text}</span>
       `;
     });

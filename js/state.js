@@ -170,61 +170,73 @@ class Store {
   }
 
   mergeRemoteData(remote) {
-    if (!remote) return;
+    if (!remote || typeof remote !== 'object') return;
     let hasChanges = false;
 
-    // Smart merge for Projects: ensure items are not dropped if valid
-    if (Array.isArray(remote.projects)) {
-      // Map remote projects by id
-      const mergedProjects = [...this.state.projects];
+    // 1. Merge Projects: Remote takes priority if populated, keeping union of both
+    if (Array.isArray(remote.projects) && remote.projects.length > 0) {
+      const currentProjects = Array.isArray(this.state.projects) ? this.state.projects : [];
+      const projectMap = new Map();
+      
+      // Load current projects
+      currentProjects.forEach(p => { if (p && p.id) projectMap.set(p.id, p); });
+      // Overlay remote projects
       remote.projects.forEach(rp => {
-        const idx = mergedProjects.findIndex(p => p.id === rp.id);
-        if (idx !== -1) {
-          mergedProjects[idx] = { ...mergedProjects[idx], ...rp };
-        } else {
-          mergedProjects.push(rp);
+        if (rp && rp.id) {
+          const existing = projectMap.get(rp.id);
+          projectMap.set(rp.id, { ...(existing || {}), ...rp });
         }
       });
 
-      if (JSON.stringify(this.state.projects) !== JSON.stringify(mergedProjects)) {
-        this.state.projects = mergedProjects;
+      const mergedList = Array.from(projectMap.values());
+      if (JSON.stringify(this.state.projects) !== JSON.stringify(mergedList)) {
+        this.state.projects = mergedList;
+        if (!this.state.activeProjectId && mergedList.length > 0) {
+          this.state.activeProjectId = mergedList[0].id;
+        }
         hasChanges = true;
       }
     }
 
-    // Smart merge for Folders
-    if (Array.isArray(remote.folders)) {
-      const mergedFolders = [...this.state.folders];
+    // 2. Merge Folders
+    if (Array.isArray(remote.folders) && remote.folders.length > 0) {
+      const currentFolders = Array.isArray(this.state.folders) ? this.state.folders : [];
+      const folderMap = new Map();
+      currentFolders.forEach(f => { if (f && f.id) folderMap.set(f.id, f); });
       remote.folders.forEach(rf => {
-        const idx = mergedFolders.findIndex(f => f.id === rf.id);
-        if (idx !== -1) {
-          mergedFolders[idx] = { ...mergedFolders[idx], ...rf };
-        } else {
-          mergedFolders.push(rf);
+        if (rf && rf.id) {
+          const existing = folderMap.get(rf.id);
+          folderMap.set(rf.id, { ...(existing || {}), ...rf });
         }
       });
+      const mergedFolders = Array.from(folderMap.values());
       if (JSON.stringify(this.state.folders) !== JSON.stringify(mergedFolders)) {
         this.state.folders = mergedFolders;
         hasChanges = true;
       }
     }
 
-    // Smart merge for Chats
-    if (Array.isArray(remote.chats)) {
-      const mergedChats = [...this.state.chats];
+    // 3. Merge Chats & Messages
+    if (Array.isArray(remote.chats) && remote.chats.length > 0) {
+      const currentChats = Array.isArray(this.state.chats) ? this.state.chats : [];
+      const chatMap = new Map();
+      currentChats.forEach(c => { if (c && c.id) chatMap.set(c.id, c); });
+
       remote.chats.forEach(rc => {
-        const idx = mergedChats.findIndex(c => c.id === rc.id);
-        if (idx !== -1) {
-          // If remote chat has messages and local doesn't, or vice-versa
-          const localMessages = mergedChats[idx].messages || [];
-          const remoteMessages = rc.messages || [];
-          const messages = localMessages.length >= remoteMessages.length ? localMessages : remoteMessages;
-          mergedChats[idx] = { ...mergedChats[idx], ...rc, messages };
-        } else {
-          mergedChats.push(rc);
+        if (rc && rc.id) {
+          const local = chatMap.get(rc.id);
+          if (local) {
+            const localMsgs = Array.isArray(local.messages) ? local.messages : [];
+            const remoteMsgs = Array.isArray(rc.messages) ? rc.messages : [];
+            const messages = localMsgs.length >= remoteMsgs.length ? localMsgs : remoteMsgs;
+            chatMap.set(rc.id, { ...local, ...rc, messages });
+          } else {
+            chatMap.set(rc.id, rc);
+          }
         }
       });
 
+      const mergedChats = Array.from(chatMap.values());
       if (JSON.stringify(this.state.chats) !== JSON.stringify(mergedChats)) {
         this.state.chats = mergedChats;
         if (!this.state.activeChatId && mergedChats.length > 0) {
@@ -234,7 +246,7 @@ class Store {
       }
     }
 
-    // Check Commands
+    // 4. Check Commands
     if (Array.isArray(remote.customCommands) && remote.customCommands.length > 0) {
       if (JSON.stringify(this.state.customCommands) !== JSON.stringify(remote.customCommands)) {
         this.state.customCommands = remote.customCommands;
@@ -242,7 +254,7 @@ class Store {
       }
     }
 
-    // Check Prompts
+    // 5. Check Prompts
     if (Array.isArray(remote.promptTemplates) && remote.promptTemplates.length > 0) {
       if (JSON.stringify(this.state.promptTemplates) !== JSON.stringify(remote.promptTemplates)) {
         this.state.promptTemplates = remote.promptTemplates;

@@ -465,8 +465,17 @@
   </div>
 
   <!-- Modal Global Search (Cmd+K) -->
-  <div id="modal-search" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-start justify-center pt-16 md:pt-20 p-3 md:p-4">
+  <div id="modal-search" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-start justify-center pt-12 md:pt-20 p-3 md:p-4">
     <div class="apple-glass-heavy rounded-2xl max-w-lg w-full p-4 shadow-2xl border border-white/10 space-y-3">
+      <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+          <i data-lucide="search" class="w-4 h-4 text-blue-400"></i>
+          <span>Búsqueda Rápida</span>
+        </h3>
+        <button class="btn-close-modal p-1 text-neutral-400 hover:text-white rounded-lg hover:bg-white/10" title="Cerrar (Esc)">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
       <div class="relative">
         <i data-lucide="search" class="w-4 h-4 text-neutral-500 absolute left-3.5 top-3.5"></i>
         <input type="text" id="search-input-global" placeholder="Buscar conversaciones, proyectos o texto..." class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-neutral-200 text-sm focus:outline-none focus:border-blue-500">
