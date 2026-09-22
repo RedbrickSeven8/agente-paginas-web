@@ -21,11 +21,11 @@ class CanvasManager {
     </div>
     <h1 class="text-xl font-bold mb-2 text-white">Side View Activo</h1>
     <p class="text-xs text-slate-400 mb-6 leading-relaxed">
-      Previsualizador en tiempo real responsive. Puedes alternar vistas de Desktop, Tablet y Móvil (375px) o colapsar el panel cuando desees.
+      Previsualizador en tiempo real responsive. Puedes abrir enlaces web, alternar vistas de Desktop, Tablet y Móvil o colapsar el panel cuando desees.
     </p>
     <div class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
       <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
-      <span>Listo para renderizar páginas</span>
+      <span>Listo para renderizar páginas y links</span>
     </div>
   </div>
 </body>
@@ -142,13 +142,19 @@ class CanvasManager {
   renderPreview(htmlOrUrl) {
     this.currentContent = htmlOrUrl;
     const frame = document.getElementById('canvas-preview-frame');
+    const urlBar = document.getElementById('preview-url-bar');
     if (!frame) return;
 
     if (typeof htmlOrUrl === 'string' && (htmlOrUrl.startsWith('http://') || htmlOrUrl.startsWith('https://'))) {
       frame.src = htmlOrUrl;
+      if (urlBar) {
+        urlBar.textContent = htmlOrUrl;
+        urlBar.title = htmlOrUrl;
+      }
     } else {
       const blob = new Blob([htmlOrUrl], { type: 'text/html' });
       frame.src = URL.createObjectURL(blob);
+      if (urlBar) urlBar.textContent = 'preview.local/rendered-artifact';
     }
   }
 

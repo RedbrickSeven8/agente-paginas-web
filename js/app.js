@@ -1413,3 +1413,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// Intercept all links inside chat messages to open in Side View
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('#chat-messages a');
+  if (link && link.href) {
+    e.preventDefault();
+    const targetUrl = link.href;
+    if (window.canvasManager) {
+      window.canvasManager.open('preview', targetUrl);
+    }
+  }
+});
