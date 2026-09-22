@@ -21,12 +21,12 @@ class Store {
       activeChatId: null,
       activeProjectId: null,
       customCommands: [
-        { name: '/editalasimagenes', desc: 'Edición de estilo, fondo y estética de imágenes adjuntas.', icon: 'wand-2' },
-        { name: '/crealasimagenes', desc: 'Generación de todas las imágenes del sitio web desde cero.', icon: 'image-plus' },
-        { name: '/combinalasimagenes', desc: 'Fusión de imágenes del usuario con recursos generados por IA.', icon: 'layers' },
-        { name: '/variaspaginas', desc: 'Creación de estructura de sitio web multipágina con menú.', icon: 'globe' },
-        { name: '/landing', desc: 'Consolidación de contenido en una sola Landing Page.', icon: 'layout-template' },
-        { name: '/creartextos', desc: 'Redacción de copy y textos comerciales desde cero.', icon: 'file-text' }
+        { id: 'cmd_1', name: '/editalasimagenes', desc: 'Edición de estilo, fondo y estética de imágenes adjuntas.', icon: 'wand-2' },
+        { id: 'cmd_2', name: '/crealasimagenes', desc: 'Generación de todas las imágenes del sitio web desde cero.', icon: 'image-plus' },
+        { id: 'cmd_3', name: '/combinalasimagenes', desc: 'Fusión de imágenes del usuario con recursos generados por IA.', icon: 'layers' },
+        { id: 'cmd_4', name: '/variaspaginas', desc: 'Creación de estructura de sitio web multipágina con menú.', icon: 'globe' },
+        { id: 'cmd_5', name: '/landing', desc: 'Consolidación de contenido en una sola Landing Page.', icon: 'layout-template' },
+        { id: 'cmd_6', name: '/creartextos', desc: 'Redacción de copy y textos comerciales desde cero.', icon: 'file-text' }
       ],
       promptTemplates: [
         { id: 'p1', title: 'Landing Page Minimalista', text: 'Crea una Landing Page moderna y minimalista con estética Apple, tipografía SF Pro, botones sutiles y animación suave con Tailwind CSS.' },
@@ -49,7 +49,30 @@ class Store {
       if (saved) {
         const parsed = JSON.parse(saved);
         const defaults = this.getDefaults();
-        return { ...defaults, ...parsed, config: { ...defaults.config, ...(parsed.config || {}) } };
+        
+        // Ensure commands have id
+        let commands = parsed.customCommands || defaults.customCommands;
+        commands = commands.map((c, i) => ({
+          id: c.id || `cmd_${Date.now()}_${i}`,
+          name: c.name.startsWith('/') ? c.name : `/${c.name}`,
+          desc: c.desc || '',
+          icon: c.icon || 'terminal'
+        }));
+
+        let prompts = parsed.promptTemplates || defaults.promptTemplates;
+        prompts = prompts.map((p, i) => ({
+          id: p.id || `prompt_${Date.now()}_${i}`,
+          title: p.title || 'Plantilla',
+          text: p.text || ''
+        }));
+
+        return {
+          ...defaults,
+          ...parsed,
+          customCommands: commands,
+          promptTemplates: prompts,
+          config: { ...defaults.config, ...(parsed.config || {}) }
+        };
       }
     } catch (e) {
       console.error('Error loading state:', e);
@@ -77,7 +100,7 @@ class Store {
     this.listeners.forEach(fn => fn(this.state));
   }
 
-  // --- CRUD Actions ---
+  // --- Projects CRUD ---
   addProject(name, icon = 'folder') {
     const id = 'proj_' + Date.now();
     const proj = { id, name, icon, createdAt: new Date().toISOString(), archived: false };
@@ -103,6 +126,7 @@ class Store {
     this.save();
   }
 
+  // --- Folders CRUD ---
   addFolder(name, projectId) {
     const id = 'fold_' + Date.now();
     const folder = { id, name, projectId, createdAt: new Date().toISOString() };
@@ -127,6 +151,7 @@ class Store {
     this.save();
   }
 
+  // --- Chats CRUD ---
   addChat({ title = 'Nueva Conversación', projectId = null, folderId = null, tags = [] }) {
     const id = 'chat_' + Date.now();
     const chat = {
@@ -168,13 +193,63 @@ class Store {
     return this.state.chats.find(x => x.id === this.state.activeChatId) || null;
   }
 
+  // --- Prompts Templates CRUD ---
+  addPrompt(title, text) {
+    const id = 'prompt_' + Date.now();
+    const newPrompt = { id, title: title.trim(), text: text.trim() };
+    this.state.promptTemplates.unshift(newPrompt);
+    this.save();
+    return newPrompt;
+  }
+
+  updatePrompt(id, updates) {
+    const p = this.state.promptTemplates.find(x => x.id === id);
+    if (p) {
+      Object.assign(p, updates);
+      this.save();
+    }
+  }
+
+  deletePrompt(id) {
+    this.state.promptTemplates = this.state.promptTemplates.filter(x => x.id !== id);
+    this.save();
+  }
+
+  // --- Commands / Atajos CRUD ---
+  addCommand(name, desc, icon = 'terminal') {
+    let cleanName = name.trim();
+    if (!cleanName.startsWith('/')) cleanName = '/' + cleanName;
+    const id = 'cmd_' + Date.now();
+    const newCmd = { id, name: cleanName, desc: desc.trim(), icon };
+    this.state.customCommands.push(newCmd);
+    this.save();
+    return newCmd;
+  }
+
+  updateCommand(id, updates) {
+    const c = this.state.customCommands.find(x => x.id === id);
+    if (c) {
+      if (updates.name && !updates.name.startsWith('/')) {
+        updates.name = '/' + updates.name.trim();
+      }
+      Object.assign(c, updates);
+      this.save();
+    }
+  }
+
+  deleteCommand(id) {
+    this.state.customCommands = this.state.customCommands.filter(x => x.id !== id);
+    this.save();
+  }
+
+  // --- Messages ---
   addMessage(chatId, { role, content, files = [], thought = '', toolCalls = [] }) {
     const chat = this.state.chats.find(x => x.id === chatId);
     if (!chat) return null;
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const msg = {
       id: msgId,
-      role, // 'user' | 'assistant'
+      role,
       content,
       files,
       thought,
@@ -184,7 +259,6 @@ class Store {
     chat.messages.push(msg);
     chat.updatedAt = new Date().toISOString();
     
-    // Estimate tokens: roughly 1 token per 4 characters
     const estimatedTokens = Math.ceil(content.length / 4);
     this.state.tokenUsage.total += estimatedTokens;
 
@@ -207,7 +281,7 @@ class Store {
   addLog(type, message, details = null) {
     const log = {
       id: 'log_' + Date.now(),
-      type, // 'info' | 'warn' | 'error' | 'api' | 'sse'
+      type,
       message,
       details,
       timestamp: new Date().toLocaleTimeString()

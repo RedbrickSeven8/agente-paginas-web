@@ -14,17 +14,19 @@ graph TD
         InputDock[Smart Input: Slash / Commands, Attachment Dock & Prompts]
         CanvasRight[Canvas Lateral: Iframe Live Preview, Diff Slider & Code]
         Debugger[Floating Debugger: Logs de Consola y API Dify]
-        CmdModal[Modal Gestor de Comandos & Biblioteca de Prompts]
+        CmdModal[Modal Gestor CRUD de Comandos y Atajos]
+        PromptModal[Modal Gestor CRUD de Biblioteca de Prompts]
         SearchModal[Cmd+K Búsqueda Global Filtrada]
+        ExportModal[Descarga de Carpetas ZIP y Exportación de Workspace]
         SettingsModal[Configuración de API & User ID Sync]
     end
 
     subgraph Core_Engine [Motor de Lógica Frontend]
-        Store[Local Storage / IndexedDB Sync Engine]
+        Store[Local Storage / Sync Engine con CRUD Atajos & Prompts]
         DifyClient[Dify SSE Client & Token Streamer]
-        SlashHandler[Slash Command Interceptor & Auto-completer]
+        SlashHandler[Slash / Autocomplete & In-Place Cursor Inserter]
         FileEngine[Client Compressor & Multi-upload Manager]
-        ExportEngine[Zip / MD / JSON Exporter]
+        ExportEngine[Folder & Project Zip Exporter - JSZip]
     end
 
     subgraph Remote_API [Servicios Remotos]
@@ -37,6 +39,9 @@ graph TD
     WebApp --> InputDock
     WebApp --> CanvasRight
     WebApp --> Debugger
+    WebApp --> CmdModal
+    WebApp --> PromptModal
+    WebApp --> ExportModal
 
     InputDock --> SlashHandler
     InputDock --> FileEngine
@@ -48,17 +53,17 @@ graph TD
 ```
 
 ## Componentes y Módulos
-1. **Dynamic Island & Header:** Notificaciones fluidas, selector de proyectos, token counter en tiempo real y selector de modo oscuro.
-2. **Sidebar:** Estructura jerárquica (Proyectos > Carpetas > Chats), estados anclados (Pinned), tags personalizables (#DiseñoWeb, #Bugs), y archivo.
-3. **Chat Feed & SSE Streaming:** Renderizado progresivo tipo Claude/ChatGPT, bloques de código interactivos con syntax highlight y botones de acción (Copiar, Reintentar, Detener, Editar).
-4. **Smart Input Dock:** 
-   - Autocompletado de comandos slash (`/editalasimagenes`, `/crealasimagenes`, `/combinalasimagenes`, `/variaspaginas`, `/landing`, `/creartextos`).
-   - Mantenimiento estricto del texto al adjuntar archivos.
-   - Attachment Dock con miniaturas y compresión en cliente.
-5. **Canvas Lateral (Artifacts & Side-by-Side View):**
-   - Previsualización web responsiva (Desktop 1920px, Tablet 768px, Mobile 375px).
-   - Comparador interactivo Antes/Después con slider de división.
-   - Navegación de archivos generados y enlaces externos.
-6. **Búsqueda Global (Cmd+K) & Filtros:** Por fecha, tipo de archivo, tags y proyectos.
-7. **Floating Debugger & Token Monitor:** Seguimiento de peticiones HTTP, SSE chunks, consumo de tokens y errores de API.
-8. **Export Engine:** Exportación a JSON, Markdown y empaquetado masivo en ZIP.
+1. **Dynamic Island & Header:** Notificaciones de estado reactivas, contador de tokens y cambio de temas.
+2. **Sidebar:** Estructura jerárquica con descarga instantánea individual de carpetas/proyectos en ZIP, anclajes y tags.
+3. **Smart Input & Slash Interceptor:**
+   - Menú flotante al tipear `/` con filtrado en tiempo real según caracteres subsiguientes.
+   - Inserción quirúrgica del comando en la posición exacta del cursor sin borrar el texto existente.
+   - Barra de atajos rápidos personalizable con acceso a gestión y edición.
+4. **Biblioteca de Prompts y Templates (CRUD Completo):**
+   - Modal con creación, edición en vivo y eliminación de templates.
+   - Botón "Usar en Chat" para inserción directa en el cursor sin perder texto previo.
+5. **Gestor de Atajos y Comandos (CRUD Completo):**
+   - Creación y edición de nombres de comando `/...` y descripciones.
+6. **Descarga de Carpetas y Proyectos:**
+   - Empaquetado instantáneo con JSZip preservando nombres y metadatos JSON.
+7. **Canvas Lateral:** Vista previa multi-resolución (Desktop 1920px, Tablet 768px, Mobile 375px), slider Antes/Después y visor de código.

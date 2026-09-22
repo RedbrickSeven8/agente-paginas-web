@@ -5,9 +5,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvas = window.canvasManager;
 
   // State local pointers
-  let pendingAttachments = []; // files ready to send
+  let pendingAttachments = [];
   let activeSlashIndex = 0;
   let filteredCommands = [];
+  let slashTriggerIndex = -1; // Exact index of the active '/' in textarea
 
   // DOM Elements
   const chatMessagesEl = document.getElementById('chat-messages');
@@ -17,10 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentDock = document.getElementById('attachment-dock');
   const fileInput = document.getElementById('file-upload-input');
   const slashMenu = document.getElementById('slash-command-menu');
-  const dynamicIsland = document.getElementById('dynamic-island');
   const dynamicIslandText = document.getElementById('dynamic-island-text');
   const dynamicIslandBadge = document.getElementById('dynamic-island-badge');
   const tokenCounterEl = document.getElementById('token-counter');
+  const quickShortcutsBar = document.getElementById('quick-shortcuts-bar');
 
   // Initialize Feather / Lucide Icons
   if (window.lucide) lucide.createIcons();
@@ -28,9 +29,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Theme Initializer ---
   document.documentElement.setAttribute('data-theme', store.state.config.theme || 'dark');
 
+  // --- Render Shortcuts Bar ---
+  function renderQuickShortcutsBar() {
+    if (!quickShortcutsBar) return;
+    const commands = store.state.customCommands;
+    quickShortcutsBar.innerHTML = `
+      <span class="text-[11px] text-neutral-500 font-medium shrink-0">Atajos:</span>
+      ${commands.map(cmd => `
+        <button class="btn-insert-shortcut px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-blue-400 hover:text-blue-300 shrink-0 flex items-center space-x-1 transition-all text-xs" data-cmd="${escapeHtml(cmd.name)}">
+          <i data-lucide="${cmd.icon || 'terminal'}" class="w-3 h-3"></i>
+          <span>${escapeHtml(cmd.name)}</span>
+        </button>
+      `).join('')}
+      <button id="btn-manage-shortcuts-inline" class="px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white shrink-0 text-xs flex items-center space-x-1" title="Gestionar / Editar Atajos">
+        <i data-lucide="settings" class="w-3 h-3"></i>
+        <span>Editar</span>
+      </button>
+    `;
+    if (window.lucide) lucide.createIcons();
+  }
+
   // --- Render Functions ---
   function renderSidebar() {
-    // Render Projects
     const projectsListEl = document.getElementById('projects-list');
     if (!projectsListEl) return;
 
@@ -59,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="text-xs font-semibold ${isActive ? 'text-white' : 'text-neutral-300'}">${escapeHtml(p.name)}</span>
             </div>
             <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button class="btn-download-project p-1 text-neutral-400 hover:text-emerald-400" title="Descargar Proyecto Completo (.zip)" data-project-id="${p.id}">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              </button>
               <button class="btn-add-folder p-1 text-neutral-400 hover:text-white" title="Nueva Carpeta" data-project-id="${p.id}">
                 <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
               </button>
@@ -83,8 +106,14 @@ document.addEventListener('DOMContentLoaded', () => {
                       <span>${escapeHtml(f.name)}</span>
                     </span>
                     <div class="flex items-center space-x-1">
-                      <button class="btn-add-folder-chat p-0.5 hover:text-white" data-project-id="${p.id}" data-folder-id="${f.id}">
+                      <button class="btn-download-folder p-0.5 hover:text-emerald-400" data-folder-id="${f.id}" title="Descargar Carpeta (.zip)">
+                        <i data-lucide="download" class="w-3 h-3"></i>
+                      </button>
+                      <button class="btn-add-folder-chat p-0.5 hover:text-white" data-project-id="${p.id}" data-folder-id="${f.id}" title="Nuevo Chat en Carpeta">
                         <i data-lucide="plus" class="w-3 h-3"></i>
+                      </button>
+                      <button class="btn-del-folder p-0.5 hover:text-red-400" data-folder-id="${f.id}" title="Eliminar Carpeta">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
                       </button>
                     </div>
                   </div>
@@ -310,17 +339,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- Insertion Helper for TextArea without deleting text ---
+  function insertTextAtCursor(textToInsert, triggerCharIndex = -1) {
+    const text = chatInputEl.value;
+    const cursorPos = chatInputEl.selectionStart;
+
+    let start = cursorPos;
+    let end = chatInputEl.selectionEnd;
+
+    // If triggered by slash, replace from where slash was typed
+    if (triggerCharIndex !== -1 && triggerCharIndex < cursorPos) {
+      start = triggerCharIndex;
+    }
+
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+
+    // Ensure nice spacing
+    const formattedInsert = textToInsert.endsWith(' ') ? textToInsert : textToInsert + ' ';
+    chatInputEl.value = before + formattedInsert + after;
+    
+    const newPos = before.length + formattedInsert.length;
+    chatInputEl.focus();
+    chatInputEl.setSelectionRange(newPos, newPos);
+
+    // Auto resize
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 180) + 'px';
+
+    slashMenu.classList.add('hidden');
+    slashTriggerIndex = -1;
+  }
+
   // --- Send Message & Stream Handler ---
   async function handleSendMessage() {
     const text = chatInputEl.value.trim();
     if (!text && pendingAttachments.length === 0) return;
 
-    // Check if there is an active chat; if not, create one
     let activeChat = store.getActiveChat();
     if (!activeChat) {
       activeChat = store.addChat({ title: text.substring(0, 30) || 'Nuevo Chat', projectId: store.state.activeProjectId });
     } else if (activeChat.messages.length === 0 && text) {
-      // update title based on first query
       store.updateChat(activeChat.id, { title: text.substring(0, 30) });
     }
 
@@ -328,12 +387,10 @@ document.addEventListener('DOMContentLoaded', () => {
     pendingAttachments = [];
     renderAttachmentDock();
 
-    // Clear input
     chatInputEl.value = '';
     chatInputEl.style.height = 'auto';
     slashMenu.classList.add('hidden');
 
-    // Add user message to state
     store.addMessage(activeChat.id, {
       role: 'user',
       content: text,
@@ -341,12 +398,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     renderMessages();
 
-    // UI Busy State
     sendBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
     updateDynamicIsland('Ejecutando Agente...', 'En vivo', true);
 
-    // Create placeholder assistant message
     const assistantMsg = store.addMessage(activeChat.id, {
       role: 'assistant',
       content: 'Pensando...',
@@ -358,7 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let fullThought = '';
     let toolList = [];
 
-    // Send to Dify
     await dify.sendMessage({
       query: text,
       files: currentFiles,
@@ -384,7 +438,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSidebar();
         updateTokenCounter();
 
-        // Check if code contains HTML to automatically populate side canvas
         if (content && (content.includes('<!DOCTYPE html>') || content.includes('<html') || content.includes('```html'))) {
           const match = content.match(/```html([\s\S]*?)```/);
           const rawHtml = match ? match[1] : (content.includes('<html') ? content : null);
@@ -466,57 +519,58 @@ document.addEventListener('DOMContentLoaded', () => {
     const textBeforeCursor = text.substring(0, cursorPos);
     const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
 
-    if (lastSlashIndex !== -1 && !textBeforeCursor.substring(lastSlashIndex).includes(' ')) {
-      const query = textBeforeCursor.substring(lastSlashIndex).toLowerCase();
-      filteredCommands = store.state.customCommands.filter(c => c.name.toLowerCase().startsWith(query));
+    if (lastSlashIndex !== -1) {
+      const queryPart = textBeforeCursor.substring(lastSlashIndex);
+      // Valid slash command trigger if no spaces after slash
+      if (!queryPart.includes(' ') && !queryPart.includes('\n')) {
+        slashTriggerIndex = lastSlashIndex;
+        const query = queryPart.toLowerCase();
+        
+        filteredCommands = store.state.customCommands.filter(c => 
+          c.name.toLowerCase().startsWith(query) || 
+          c.name.toLowerCase().includes(query.replace('/', ''))
+        );
 
-      if (filteredCommands.length > 0) {
-        renderSlashMenu(filteredCommands);
-        slashMenu.classList.remove('hidden');
-        return;
+        if (filteredCommands.length > 0) {
+          activeSlashIndex = 0;
+          renderSlashMenu(filteredCommands);
+          slashMenu.classList.remove('hidden');
+          return;
+        }
       }
     }
     slashMenu.classList.add('hidden');
+    slashTriggerIndex = -1;
   }
 
   function renderSlashMenu(commands) {
-    slashMenu.innerHTML = commands.map((c, idx) => `
-      <div class="slash-item flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${idx === activeSlashIndex ? 'bg-blue-600/30 text-blue-300 font-medium' : 'text-neutral-300 hover:bg-white/5'}" data-index="${idx}" data-cmd="${c.name}">
-        <div class="flex items-center space-x-2">
-          <span class="font-mono text-blue-400 text-xs font-bold">${c.name}</span>
-          <span class="text-[11px] text-neutral-400 truncate max-w-[220px]">${escapeHtml(c.desc)}</span>
-        </div>
-        <i data-lucide="${c.icon || 'terminal'}" class="w-3.5 h-3.5 text-neutral-500"></i>
+    slashMenu.innerHTML = `
+      <div class="px-2 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between border-b border-white/5 mb-1">
+        <span>Comandos Slash Sugeridos</span>
+        <span class="text-[9px] text-neutral-500 font-mono">↑↓ para navegar • Enter para elegir</span>
       </div>
-    `).join('');
+      <div class="max-h-52 overflow-y-auto space-y-0.5">
+        ${commands.map((c, idx) => `
+          <div class="slash-item flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all ${idx === activeSlashIndex ? 'bg-blue-600/30 text-blue-300 font-medium border border-blue-500/30' : 'text-neutral-300 hover:bg-white/5'}" data-index="${idx}" data-cmd="${escapeHtml(c.name)}">
+            <div class="flex items-center space-x-2 truncate">
+              <span class="font-mono text-blue-400 text-xs font-bold">${escapeHtml(c.name)}</span>
+              <span class="text-[11px] text-neutral-400 truncate max-w-[280px]">${escapeHtml(c.desc)}</span>
+            </div>
+            <i data-lucide="${c.icon || 'terminal'}" class="w-3.5 h-3.5 text-neutral-500 shrink-0"></i>
+          </div>
+        `).join('')}
+      </div>
+    `;
     if (window.lucide) lucide.createIcons();
   }
 
-  function insertSlashCommand(cmdName) {
-    const text = chatInputEl.value;
-    const cursorPos = chatInputEl.selectionStart;
-    const textBeforeCursor = text.substring(0, cursorPos);
-    const textAfterCursor = text.substring(cursorPos);
-    const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
-
-    if (lastSlashIndex !== -1) {
-      chatInputEl.value = textBeforeCursor.substring(0, lastSlashIndex) + cmdName + ' ' + textAfterCursor;
-      chatInputEl.focus();
-      const newCursorPos = lastSlashIndex + cmdName.length + 1;
-      chatInputEl.setSelectionRange(newCursorPos, newCursorPos);
-    }
-    slashMenu.classList.add('hidden');
-  }
-
-  // --- Global Keyboard Shortcuts ---
+  // --- Keyboard Shortcuts & Input ---
   window.addEventListener('keydown', (e) => {
-    // Cmd+K or Ctrl+K for Global Search
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       document.getElementById('modal-search')?.classList.remove('hidden');
       document.getElementById('search-input-global')?.focus();
     }
-    // Cmd+Enter or Ctrl+Enter for Send
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       if (document.activeElement === chatInputEl) {
         e.preventDefault();
@@ -525,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Input Event Listeners ---
   chatInputEl.addEventListener('input', () => {
     chatInputEl.style.height = 'auto';
     chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 180) + 'px';
@@ -544,9 +597,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSlashMenu(filteredCommands);
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        insertSlashCommand(filteredCommands[activeSlashIndex].name);
+        insertTextAtCursor(filteredCommands[activeSlashIndex].name, slashTriggerIndex);
       } else if (e.key === 'Escape') {
         slashMenu.classList.add('hidden');
+        slashTriggerIndex = -1;
       }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -558,7 +612,6 @@ document.addEventListener('DOMContentLoaded', () => {
   sendBtn.addEventListener('click', handleSendMessage);
   stopBtn.addEventListener('click', () => dify.stop());
 
-  // Attach button
   document.getElementById('btn-attach')?.addEventListener('click', () => {
     fileInput.click();
   });
@@ -594,15 +647,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const slashItem = e.target.closest('.slash-item');
     if (slashItem) {
       const cmd = slashItem.dataset.cmd;
-      if (cmd) insertSlashCommand(cmd);
+      if (cmd) insertTextAtCursor(cmd, slashTriggerIndex);
       return;
     }
 
-    // Quick Prompt Card click
+    // Insert shortcut from bar (inserts at cursor without erasing!)
+    const insertShortcutBtn = e.target.closest('.btn-insert-shortcut');
+    if (insertShortcutBtn) {
+      const cmd = insertShortcutBtn.dataset.cmd;
+      if (cmd) insertTextAtCursor(cmd);
+      return;
+    }
+
+    // Open Shortcut Manager inline
+    if (e.target.closest('#btn-manage-shortcuts-inline')) {
+      renderCommandManager();
+      modals.commands.classList.remove('hidden');
+      return;
+    }
+
+    // Quick Prompt Card click (initial empty state)
     const promptCard = e.target.closest('.quick-prompt-card');
     if (promptCard) {
-      chatInputEl.value = promptCard.dataset.prompt;
-      chatInputEl.focus();
+      insertTextAtCursor(promptCard.dataset.prompt);
       return;
     }
 
@@ -648,6 +715,34 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSidebar();
         renderMessages();
       }
+      return;
+    }
+
+    // Folder Delete
+    const delFolderBtn = e.target.closest('.btn-del-folder');
+    if (delFolderBtn) {
+      const fId = delFolderBtn.dataset.folderId;
+      if (confirm('¿Eliminar esta carpeta? (Los chats quedarán como sueltos en el proyecto)')) {
+        store.deleteFolder(fId);
+        renderSidebar();
+        renderMessages();
+      }
+      return;
+    }
+
+    // Download Single Folder as ZIP
+    const dlFolderBtn = e.target.closest('.btn-download-folder');
+    if (dlFolderBtn) {
+      const fId = dlFolderBtn.dataset.folderId;
+      downloadFolderZip(fId);
+      return;
+    }
+
+    // Download Single Project as ZIP
+    const dlProjBtn = e.target.closest('.btn-download-project');
+    if (dlProjBtn) {
+      const pId = dlProjBtn.dataset.projectId;
+      downloadProjectZip(pId);
       return;
     }
 
@@ -722,7 +817,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const chat = store.getActiveChat();
       const msg = chat?.messages.find(m => m.id === msgId);
       if (msg) {
-        // extract code or show preview
         const codeMatch = msg.content.match(/```(\w+)?\n([\s\S]*?)```/);
         if (codeMatch) {
           const lang = codeMatch[1] || 'html';
@@ -773,7 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Modals Setup (Settings, Commands, Debugger, Export) ---
+  // --- Modals Setup ---
   const modals = {
     settings: document.getElementById('modal-settings'),
     commands: document.getElementById('modal-commands'),
@@ -783,7 +877,6 @@ document.addEventListener('DOMContentLoaded', () => {
     prompts: document.getElementById('modal-prompts')
   };
 
-  // Open buttons
   document.getElementById('btn-open-settings')?.addEventListener('click', () => modals.settings.classList.remove('hidden'));
   document.getElementById('btn-open-commands')?.addEventListener('click', () => {
     renderCommandManager();
@@ -793,14 +886,16 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDebuggerLogs();
     modals.debugger.classList.remove('hidden');
   });
-  document.getElementById('btn-open-export')?.addEventListener('click', () => modals.export.classList.remove('hidden'));
+  document.getElementById('btn-open-export')?.addEventListener('click', () => {
+    renderExportModal();
+    modals.export.classList.remove('hidden');
+  });
   document.getElementById('btn-open-search')?.addEventListener('click', () => modals.search.classList.remove('hidden'));
   document.getElementById('btn-open-prompts')?.addEventListener('click', () => {
     renderPromptsList();
     modals.prompts.classList.remove('hidden');
   });
 
-  // Close buttons on all modals
   document.querySelectorAll('.btn-close-modal').forEach(btn => {
     btn.addEventListener('click', () => {
       Object.values(modals).forEach(m => m?.classList.add('hidden'));
@@ -830,72 +925,204 @@ document.addEventListener('DOMContentLoaded', () => {
     store.addLog('info', 'Configuración de API actualizada');
   });
 
-  // --- Command Manager Render & Logic ---
+  // --- Command Manager Render & Logic (CRUD Completo) ---
   function renderCommandManager() {
     const listEl = document.getElementById('command-manager-list');
     if (!listEl) return;
-    listEl.innerHTML = store.state.customCommands.map((c, i) => `
-      <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-xs">
-        <div>
-          <span class="font-mono font-bold text-blue-400">${c.name}</span>
-          <p class="text-neutral-400 mt-0.5">${escapeHtml(c.desc)}</p>
+    listEl.innerHTML = store.state.customCommands.map((c) => `
+      <div class="p-3 rounded-xl bg-white/5 border border-white/5 text-xs group hover:border-white/10 transition-all" id="cmd-card-${c.id}">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono font-bold text-blue-400 text-sm">${escapeHtml(c.name)}</span>
+          <div class="flex items-center space-x-1.5">
+            <button class="btn-edit-custom-cmd p-1.5 hover:text-blue-300 text-neutral-400 rounded-lg hover:bg-white/5" data-id="${c.id}" title="Editar Atajo">
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="btn-del-custom-cmd p-1.5 hover:text-red-400 text-neutral-400 rounded-lg hover:bg-white/5" data-id="${c.id}" title="Eliminar Atajo">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
-        <button class="btn-del-custom-cmd p-1.5 hover:text-red-400 text-neutral-500" data-index="${i}">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
+        <p class="text-neutral-300 text-xs">${escapeHtml(c.desc)}</p>
       </div>
     `).join('');
     if (window.lucide) lucide.createIcons();
   }
 
-  document.getElementById('form-add-command')?.addEventListener('submit', (e) => {
+  // Add / Edit Command Form
+  const formAddCommand = document.getElementById('form-add-command');
+  const inputCmdId = document.getElementById('edit-cmd-id');
+  const inputCmdName = document.getElementById('new-cmd-name');
+  const inputCmdDesc = document.getElementById('new-cmd-desc');
+  const btnSubmitCmd = document.getElementById('btn-submit-cmd');
+  const btnCancelEditCmd = document.getElementById('btn-cancel-edit-cmd');
+
+  formAddCommand?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const nameInput = document.getElementById('new-cmd-name');
-    const descInput = document.getElementById('new-cmd-desc');
-    let name = nameInput.value.trim();
-    if (!name.startsWith('/')) name = '/' + name;
-    if (name) {
-      store.state.customCommands.push({ name, desc: descInput.value.trim(), icon: 'terminal' });
-      store.save();
-      nameInput.value = '';
-      descInput.value = '';
-      renderCommandManager();
+    const id = inputCmdId.value;
+    const name = inputCmdName.value.trim();
+    const desc = inputCmdDesc.value.trim();
+
+    if (!name) return;
+
+    if (id) {
+      // Update
+      store.updateCommand(id, { name, desc });
+    } else {
+      // Add
+      store.addCommand(name, desc);
     }
+
+    // Reset Form
+    inputCmdId.value = '';
+    inputCmdName.value = '';
+    inputCmdDesc.value = '';
+    btnSubmitCmd.textContent = 'Agregar a la lista';
+    btnCancelEditCmd?.classList.add('hidden');
+
+    renderCommandManager();
+    renderQuickShortcutsBar();
+  });
+
+  btnCancelEditCmd?.addEventListener('click', () => {
+    inputCmdId.value = '';
+    inputCmdName.value = '';
+    inputCmdDesc.value = '';
+    btnSubmitCmd.textContent = 'Agregar a la lista';
+    btnCancelEditCmd.classList.add('hidden');
   });
 
   document.addEventListener('click', (e) => {
+    // Delete Command
     const delCmd = e.target.closest('.btn-del-custom-cmd');
     if (delCmd) {
-      const idx = parseInt(delCmd.dataset.index, 10);
-      store.state.customCommands.splice(idx, 1);
-      store.save();
-      renderCommandManager();
+      const id = delCmd.dataset.id;
+      if (confirm('¿Eliminar este comando de atajo?')) {
+        store.deleteCommand(id);
+        renderCommandManager();
+        renderQuickShortcutsBar();
+      }
+      return;
+    }
+
+    // Edit Command
+    const editCmd = e.target.closest('.btn-edit-custom-cmd');
+    if (editCmd) {
+      const id = editCmd.dataset.id;
+      const cmd = store.state.customCommands.find(c => c.id === id);
+      if (cmd) {
+        inputCmdId.value = cmd.id;
+        inputCmdName.value = cmd.name;
+        inputCmdDesc.value = cmd.desc;
+        btnSubmitCmd.textContent = 'Guardar Cambios';
+        btnCancelEditCmd?.classList.remove('hidden');
+        inputCmdName.focus();
+      }
+      return;
     }
   });
 
-  // --- Prompt Gallery Render & Logic ---
+  // --- Prompt Gallery Render & Logic (CRUD Completo) ---
+  const formPrompt = document.getElementById('form-prompt-editor');
+  const inputPromptId = document.getElementById('edit-prompt-id');
+  const inputPromptTitle = document.getElementById('prompt-input-title');
+  const inputPromptText = document.getElementById('prompt-input-text');
+  const btnSubmitPrompt = document.getElementById('btn-submit-prompt');
+  const btnCancelEditPrompt = document.getElementById('btn-cancel-edit-prompt');
+
   function renderPromptsList() {
     const listEl = document.getElementById('prompts-gallery-list');
     if (!listEl) return;
+    if (store.state.promptTemplates.length === 0) {
+      listEl.innerHTML = '<div class="text-neutral-500 text-center py-6 text-xs">No hay plantillas de prompt guardadas</div>';
+      return;
+    }
     listEl.innerHTML = store.state.promptTemplates.map((p) => `
-      <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/10 transition-all">
+      <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/10 transition-all group" id="prompt-card-${p.id}">
         <div class="flex items-center justify-between mb-1.5">
-          <span class="font-semibold text-white">${escapeHtml(p.title)}</span>
-          <button class="btn-use-prompt px-2.5 py-1 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-[11px]" data-text="${escapeHtml(p.text)}">
-            Usar Prompt
-          </button>
+          <span class="font-semibold text-white text-sm">${escapeHtml(p.title)}</span>
+          <div class="flex items-center space-x-1.5">
+            <button class="btn-use-prompt px-2.5 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 text-[11px] font-medium" data-text="${escapeHtml(p.text)}" title="Insertar en la posición actual del chat">
+              Usar en Chat
+            </button>
+            <button class="btn-edit-prompt p-1 hover:text-blue-300 text-neutral-400 rounded hover:bg-white/5" data-id="${p.id}" title="Editar Plantilla">
+              <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="btn-del-prompt p-1 hover:text-red-400 text-neutral-400 rounded hover:bg-white/5" data-id="${p.id}" title="Eliminar Plantilla">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
-        <p class="text-neutral-400 text-[11px] leading-relaxed">${escapeHtml(p.text)}</p>
+        <p class="text-neutral-300 text-[11px] leading-relaxed whitespace-pre-wrap">${escapeHtml(p.text)}</p>
       </div>
     `).join('');
+    if (window.lucide) lucide.createIcons();
   }
 
+  formPrompt?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = inputPromptId.value;
+    const title = inputPromptTitle.value.trim();
+    const text = inputPromptText.value.trim();
+
+    if (!title || !text) return;
+
+    if (id) {
+      store.updatePrompt(id, { title, text });
+    } else {
+      store.addPrompt(title, text);
+    }
+
+    inputPromptId.value = '';
+    inputPromptTitle.value = '';
+    inputPromptText.value = '';
+    btnSubmitPrompt.textContent = 'Guardar Plantilla';
+    btnCancelEditPrompt?.classList.add('hidden');
+
+    renderPromptsList();
+  });
+
+  btnCancelEditPrompt?.addEventListener('click', () => {
+    inputPromptId.value = '';
+    inputPromptTitle.value = '';
+    inputPromptText.value = '';
+    btnSubmitPrompt.textContent = 'Guardar Plantilla';
+    btnCancelEditPrompt.classList.add('hidden');
+  });
+
   document.addEventListener('click', (e) => {
+    // Use prompt in chat (INSERTS AT CURSOR WITHOUT ERASING)
     const usePrompt = e.target.closest('.btn-use-prompt');
     if (usePrompt) {
-      chatInputEl.value = usePrompt.dataset.text;
+      insertTextAtCursor(usePrompt.dataset.text);
       modals.prompts.classList.add('hidden');
-      chatInputEl.focus();
+      return;
+    }
+
+    // Delete Prompt
+    const delPrompt = e.target.closest('.btn-del-prompt');
+    if (delPrompt) {
+      const id = delPrompt.dataset.id;
+      if (confirm('¿Eliminar esta plantilla de prompt?')) {
+        store.deletePrompt(id);
+        renderPromptsList();
+      }
+      return;
+    }
+
+    // Edit Prompt
+    const editPrompt = e.target.closest('.btn-edit-prompt');
+    if (editPrompt) {
+      const id = editPrompt.dataset.id;
+      const promptObj = store.state.promptTemplates.find(p => p.id === id);
+      if (promptObj) {
+        inputPromptId.value = promptObj.id;
+        inputPromptTitle.value = promptObj.title;
+        inputPromptText.value = promptObj.text;
+        btnSubmitPrompt.textContent = 'Actualizar Plantilla';
+        btnCancelEditPrompt?.classList.remove('hidden');
+        inputPromptTitle.focus();
+      }
+      return;
     }
   });
 
@@ -930,7 +1157,113 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDebuggerLogs();
   });
 
-  // --- Export Logic ---
+  // --- Folder & Project ZIP Exporter ---
+  async function downloadFolderZip(folderId) {
+    if (!window.JSZip) {
+      alert('Cargando motor de compresión ZIP...');
+      return;
+    }
+    const folder = store.state.folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const project = store.state.projects.find(p => p.id === folder.projectId);
+    const chats = store.state.chats.filter(c => c.folderId === folderId);
+
+    const zip = new JSZip();
+    const folderNameClean = folder.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const folderZip = zip.folder(folderNameClean);
+
+    chats.forEach(c => {
+      let md = `# ${c.title}\n\n*Carpeta: ${folder.name}*\n*Proyecto: ${project ? project.name : 'General'}*\n*Fecha: ${new Date(c.createdAt).toLocaleString()}*\n\n---\n\n`;
+      c.messages.forEach(m => {
+        md += `### ${m.role === 'user' ? '👤 Usuario' : '🤖 Studio Agent'}\n${m.content}\n\n`;
+      });
+      folderZip.file(`${c.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_${c.id}.md`, md);
+    });
+
+    folderZip.file('metadata.json', JSON.stringify({ folder, project, chats }, null, 2));
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, `Carpeta_${folderNameClean}.zip`);
+    store.addLog('info', `Carpeta ${folder.name} descargada en ZIP con ${chats.length} chats.`);
+  }
+
+  async function downloadProjectZip(projectId) {
+    if (!window.JSZip) {
+      alert('Cargando motor de compresión ZIP...');
+      return;
+    }
+    const project = store.state.projects.find(p => p.id === projectId);
+    if (!project) return;
+    const folders = store.state.folders.filter(f => f.projectId === projectId);
+    const chats = store.state.chats.filter(c => c.projectId === projectId);
+
+    const zip = new JSZip();
+    const projNameClean = project.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const rootZip = zip.folder(projNameClean);
+
+    // Root standalone chats
+    const rootChats = chats.filter(c => !c.folderId);
+    rootChats.forEach(c => {
+      let md = `# ${c.title}\n\n*Proyecto: ${project.name}*\n*Fecha: ${new Date(c.createdAt).toLocaleString()}*\n\n---\n\n`;
+      c.messages.forEach(m => {
+        md += `### ${m.role === 'user' ? '👤 Usuario' : '🤖 Studio Agent'}\n${m.content}\n\n`;
+      });
+      rootZip.file(`${c.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`, md);
+    });
+
+    // Subfolders
+    folders.forEach(f => {
+      const fFolder = rootZip.folder(f.name.replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const fChats = chats.filter(c => c.folderId === f.id);
+      fChats.forEach(c => {
+        let md = `# ${c.title}\n\n*Carpeta: ${f.name}*\n*Proyecto: ${project.name}*\n\n---\n\n`;
+        c.messages.forEach(m => {
+          md += `### ${m.role === 'user' ? '👤 Usuario' : '🤖 Studio Agent'}\n${m.content}\n\n`;
+        });
+        fFolder.file(`${c.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`, md);
+      });
+    });
+
+    rootZip.file('project_structure.json', JSON.stringify({ project, folders, chats }, null, 2));
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, `Proyecto_${projNameClean}.zip`);
+    store.addLog('info', `Proyecto ${project.name} descargado en ZIP con ${folders.length} carpetas y ${chats.length} chats.`);
+  }
+
+  function renderExportModal() {
+    const listFoldersEl = document.getElementById('export-folders-selection-list');
+    if (!listFoldersEl) return;
+    const folders = store.state.folders;
+
+    if (folders.length === 0) {
+      listFoldersEl.innerHTML = '<div class="text-neutral-500 text-xs text-center py-2">No hay carpetas creadas en los proyectos</div>';
+      return;
+    }
+
+    listFoldersEl.innerHTML = folders.map(f => {
+      const p = store.state.projects.find(proj => proj.id === f.projectId);
+      const chatCount = store.state.chats.filter(c => c.folderId === f.id).length;
+      return `
+        <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-xs hover:border-white/10 transition-all">
+          <div class="flex items-center space-x-2 truncate">
+            <i data-lucide="folder" class="w-4 h-4 text-neutral-400 shrink-0"></i>
+            <div class="truncate">
+              <span class="font-medium text-white">${escapeHtml(f.name)}</span>
+              <p class="text-[10px] text-neutral-500">${p ? p.name : 'Proyecto'} • ${chatCount} conversaciones</p>
+            </div>
+          </div>
+          <button class="btn-download-folder px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-[11px] font-medium flex items-center space-x-1" data-folder-id="${f.id}">
+            <i data-lucide="download" class="w-3 h-3"></i>
+            <span>Descargar</span>
+          </button>
+        </div>
+      `;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // --- Single Exports ---
   document.getElementById('btn-export-chat-md')?.addEventListener('click', () => {
     const chat = store.getActiveChat();
     if (!chat) return;
@@ -965,22 +1298,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `StudioAgent_Backup_${Date.now()}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `StudioAgent_Backup_${Date.now()}.zip`);
   });
 
-  function downloadFile(filename, text, type) {
-    const blob = new Blob([text], { type });
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadFile(filename, text, type) {
+    const blob = new Blob([text], { type });
+    downloadBlob(blob, filename);
   }
 
   // --- Global Search Input ---
@@ -1062,5 +1394,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial Renders
   renderSidebar();
   renderMessages();
+  renderQuickShortcutsBar();
   updateTokenCounter();
 });
