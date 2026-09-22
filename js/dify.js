@@ -39,22 +39,73 @@ class DifyService {
     }
   }
 
+  // Helper para formatear y humanizar comandos y herramientas del agente
+  humanizeAction(tool, toolInput, thought) {
+    let title = 'Procesando acción...';
+    let detail = '';
+    let icon = 'sparkles';
+    let type = 'general';
+
+    const toolName = (tool || '').toLowerCase();
+    let inputStr = '';
+    if (typeof toolInput === 'string') {
+      inputStr = toolInput;
+    } else if (toolInput && typeof toolInput === 'object') {
+      inputStr = toolInput.script || toolInput.command || toolInput.query || toolInput.prompt || toolInput.url || JSON.stringify(toolInput);
+    }
+
+    if (toolName.includes('shell') || toolName.includes('bash') || toolName.includes('exec') || toolName.includes('terminal')) {
+      type = 'shell';
+      icon = 'terminal';
+      if (inputStr.includes('surge')) {
+        title = '🚀 Desplegando en vivo en Surge.sh';
+        detail = 'Subiendo archivos compilados y configurando dominio...';
+      } else if (inputStr.includes('git push') || inputStr.includes('git commit')) {
+        title = '📦 Sincronizando repositorio en GitHub';
+        detail = 'Guardando commits y subiendo rama main...';
+      } else if (inputStr.includes('curl') || inputStr.includes('wget') || inputStr.includes('http')) {
+        title = '🌐 Conectando y descargando recursos web';
+        detail = inputStr.substring(0, 100);
+      } else if (inputStr.includes('cat') || inputStr.includes('mkdir') || inputStr.includes('touch') || inputStr.includes('ls')) {
+        title = '📁 Estructurando archivos y carpetas';
+        detail = inputStr.substring(0, 90);
+      } else if (inputStr.includes('node') || inputStr.includes('python') || inputStr.includes('pnpm') || inputStr.includes('npm')) {
+        title = '⚙️ Ejecutando scripts de compilación y lógica';
+        detail = inputStr.substring(0, 90);
+      } else {
+        title = '⚡ Ejecutando comando de consola';
+        detail = inputStr ? inputStr.substring(0, 100) : 'Procesando en workspace sandbox...';
+      }
+    } else if (toolName.includes('image') || toolName.includes('vertex') || toolName.includes('gemini')) {
+      type = 'image';
+      icon = 'image';
+      title = '🎨 Generando / Editando assets visuales e imágenes';
+      detail = inputStr ? `Prompt: ${inputStr.substring(0, 100)}` : 'Procesando con modelo de diseño...';
+    } else if (toolName.includes('web') || toolName.includes('search') || toolName.includes('scrape') || toolName.includes('fetch')) {
+      type = 'network';
+      icon = 'globe';
+      title = '🔍 Consultando recursos y enlaces externos';
+      detail = inputStr.substring(0, 100);
+    } else if (toolName.includes('design') || toolName.includes('taste')) {
+      type = 'design';
+      icon = 'palette';
+      title = '✨ Diseñando interfaz y tokens UI/UX';
+      detail = 'Aplicando estética moderna, contraste y layout responsive...';
+    } else if (tool) {
+      title = `Herramienta: ${tool}`;
+      detail = inputStr.substring(0, 100);
+    } else if (thought) {
+      title = 'Pensando y planificando arquitectura...';
+      detail = thought.substring(0, 120);
+    }
+
+    return { title, detail, rawTool: tool, rawInput: inputStr, icon, type };
+  }
+
   async sendMessage({ query, files = [], chatId, onChunk, onThought, onToolCall, onComplete, onError }) {
     const config = this.getConfig();
     const chat = window.appStore.state.chats.find(c => c.id === chatId);
     const conversationId = chat ? chat.difyConversationId : '';
-
-    // Shared Project context
-    let projectContextNote = '';
-    if (chat && chat.projectId) {
-      const project = window.appStore.state.projects.find(p => p.id === chat.projectId);
-      if (project) {
-        const otherChats = window.appStore.state.chats.filter(c => c.projectId === chat.projectId && c.id !== chat.id);
-        if (otherChats.length > 0) {
-          projectContextNote = `[Contexto del Proyecto "${project.name}": Este proyecto incluye ${otherChats.length} conversaciones relacionadas. Mantén coherencia y continuidad].\n`;
-        }
-      }
-    }
 
     const payload = {
       inputs: {},
@@ -98,7 +149,7 @@ class DifyService {
       let buffer = '';
       let accumulatedContent = '';
       let accumulatedThought = '';
-      let activeTools = [];
+      let stepsHistory = [];
 
       while (true) {
         const { value, done } = await reader.read();
@@ -106,7 +157,7 @@ class DifyService {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep last incomplete line
+        buffer = lines.pop();
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -124,17 +175,34 @@ class DifyService {
               if (onChunk) onChunk(accumulatedContent, chunk);
             } else if (event === 'agent_thought') {
               const thought = data.thought || '';
+              const tool = data.tool || '';
+              const toolInput = data.tool_input || '';
               accumulatedThought += thought;
-              const tool = data.tool;
-              if (tool && !activeTools.includes(tool)) {
-                activeTools.push(tool);
-                window.appStore.addLog('sse', `Herramienta invocada: ${tool}`);
+
+              const action = this.humanizeAction(tool, toolInput, thought);
+              
+              if (tool || thought) {
+                // Registrar paso enriquecido
+                const existingStep = stepsHistory.find(s => s.tool === tool && s.input === action.rawInput);
+                if (!existingStep) {
+                  stepsHistory.push({
+                    title: action.title,
+                    detail: action.detail,
+                    tool: tool,
+                    input: action.rawInput,
+                    icon: action.icon,
+                    type: action.type,
+                    thought: thought,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                  });
+                }
+                window.appStore.addLog('sse', `${action.title}: ${action.detail || tool}`);
               }
-              if (onThought) onThought(accumulatedThought, tool, data.tool_input);
+
+              if (onThought) onThought(accumulatedThought, action, stepsHistory);
             } else if (event === 'message_file') {
               window.appStore.addLog('info', `Archivo generado por el agente: ${data.url || data.id}`);
             } else if (event === 'message_end') {
-              // Update conversation id if new
               if (data.conversation_id && chat) {
                 window.appStore.updateChat(chatId, { difyConversationId: data.conversation_id });
               }
@@ -153,7 +221,7 @@ class DifyService {
       }
 
       window.appStore.addLog('sse', 'Stream completado exitosamente.');
-      if (onComplete) onComplete(accumulatedContent, accumulatedThought, activeTools);
+      if (onComplete) onComplete(accumulatedContent, accumulatedThought, stepsHistory);
     } catch (err) {
       if (err.name === 'AbortError') {
         window.appStore.addLog('warn', 'Generación detenida por el usuario.');

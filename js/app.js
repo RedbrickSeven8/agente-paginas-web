@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingAttachments = [];
   let activeSlashIndex = 0;
   let filteredCommands = [];
-  let slashTriggerIndex = -1; // Exact index of the active '/' in textarea
+  let slashTriggerIndex = -1;
 
   // DOM Elements
   const chatMessagesEl = document.getElementById('chat-messages');
@@ -23,10 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tokenCounterEl = document.getElementById('token-counter');
   const quickShortcutsBar = document.getElementById('quick-shortcuts-bar');
 
-  // Initialize Feather / Lucide Icons
   if (window.lucide) lucide.createIcons();
-
-  // --- Theme Initializer ---
   document.documentElement.setAttribute('data-theme', store.state.config.theme || 'dark');
 
   // --- Render Shortcuts Bar ---
@@ -94,7 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
           
-          <!-- Folders Inside Project -->
           <div class="pl-3 mt-1.5 space-y-1">
             ${projectFolders.map(f => {
               const folderChats = store.state.chats.filter(c => c.folderId === f.id);
@@ -123,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               `;
             }).join('')}
-            <!-- Standalone Chats in Project -->
             ${projectChats.map(c => renderChatItem(c)).join('')}
           </div>
         `;
@@ -131,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Render Standalone / Unassigned Chats
     const standaloneChatsEl = document.getElementById('standalone-chats-list');
     if (standaloneChatsEl) {
       const standalone = store.state.chats.filter(c => !c.projectId && !c.folderId);
@@ -142,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Render Pinned Chats
     const pinnedChatsEl = document.getElementById('pinned-chats-list');
     if (pinnedChatsEl) {
       const pinned = store.state.chats.filter(c => c.pinned);
@@ -178,10 +171,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatTextWithLinks(rawContent) {
-    let parsed = marked.parse(rawContent || '');
-    // Convert plain URLs that might have been missed
-    const urlRegex = /(https?:\/\/[^\s<>"'\)]+)/gi;
-    return parsed;
+    return marked.parse(rawContent || '');
+  }
+
+  // --- Render Rich Visual Agent Steps Timeline ---
+  function renderLiveAgentActivity(steps, isStreaming = false) {
+    if (!steps || steps.length === 0) return '';
+
+    return `
+      <div class="w-full mb-3 rounded-2xl bg-gradient-to-b from-neutral-900/90 to-black/90 border border-white/10 p-3.5 shadow-xl transition-all">
+        <div class="flex items-center justify-between border-b border-white/5 pb-2 mb-2.5">
+          <div class="flex items-center space-x-2">
+            <div class="w-2 h-2 rounded-full ${isStreaming ? 'bg-blue-400 animate-ping' : 'bg-emerald-400'}"></div>
+            <span class="text-xs font-semibold text-neutral-200">Acciones del Agente en Vivo</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-500/10 text-blue-300 border border-blue-500/20">${steps.length} ${steps.length === 1 ? 'paso' : 'pasos'}</span>
+          </div>
+          <span class="text-[10px] font-mono text-neutral-500">${isStreaming ? 'Ejecutando...' : 'Completado'}</span>
+        </div>
+
+        <div class="space-y-2 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+          ${steps.map((s, idx) => {
+            const isLast = idx === steps.length - 1 && isStreaming;
+            let iconColor = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+            if (s.type === 'shell') iconColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+            if (s.type === 'image') iconColor = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+            if (s.type === 'network') iconColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+
+            return `
+              <div class="flex items-start space-x-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs ${isLast ? 'border-blue-500/30 bg-blue-500/[0.05]' : ''}">
+                <div class="w-6 h-6 rounded-lg border ${iconColor} flex items-center justify-center shrink-0 mt-0.5">
+                  <i data-lucide="${s.icon || 'terminal'}" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium text-neutral-200 text-xs truncate">${escapeHtml(s.title)}</span>
+                    <span class="text-[10px] font-mono text-neutral-500 shrink-0 ml-2">${s.timestamp || ''}</span>
+                  </div>
+                  ${s.detail ? `
+                    <p class="text-[11px] text-neutral-400 mt-0.5 font-mono truncate bg-black/40 px-2 py-0.5 rounded border border-white/5">${escapeHtml(s.detail)}</p>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
   }
 
   function renderMessages() {
@@ -196,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <h2 class="text-2xl font-bold tracking-tight text-white mb-2">Studio Agent Workspace</h2>
           <p class="text-sm text-neutral-400 mb-8 leading-relaxed">
-            Tu copiloto de desarrollo y diseño UI/UX. Conectado vía SSE a Dify API con soporte multimodal, generación de páginas, canvas interactivo y comandos rápidos.
+            Tu copiloto de desarrollo y diseño UI/UX. Conectado vía SSE a Dify API con soporte multimodal, visualización de acciones en vivo, Side View y atajos rápidos.
           </p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
             <button class="quick-prompt-card p-3.5 rounded-xl apple-glass text-left hover:border-white/20 transition-all group" data-prompt="/landing Crea una Landing Page moderna para una Startup de IA con estética Apple y modo oscuro.">
@@ -263,26 +298,14 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
-    let thoughtHtml = '';
-    if (msg.thought) {
-      thoughtHtml = `
+    let activityHtml = '';
+    if (!isUser && msg.steps && msg.steps.length > 0) {
+      activityHtml = renderLiveAgentActivity(msg.steps, false);
+    } else if (msg.thought) {
+      activityHtml = `
         <div class="w-full mb-3 p-3 rounded-xl bg-purple-950/20 border border-purple-500/20 text-xs text-purple-300 flex items-start space-x-2">
           <i data-lucide="cpu" class="w-4 h-4 text-purple-400 shrink-0 mt-0.5"></i>
           <div class="flex-1 whitespace-pre-wrap">${escapeHtml(msg.thought)}</div>
-        </div>
-      `;
-    }
-
-    let toolCallsHtml = '';
-    if (msg.toolCalls && msg.toolCalls.length > 0) {
-      toolCallsHtml = `
-        <div class="flex flex-wrap gap-1.5 mb-2">
-          ${msg.toolCalls.map(t => `
-            <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <i data-lucide="terminal" class="w-3 h-3"></i>
-              <span>Herramienta: ${escapeHtml(t)}</span>
-            </span>
-          `).join('')}
         </div>
       `;
     }
@@ -297,8 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="max-w-[85%] md:max-w-[75%] rounded-2xl p-4 ${isUser ? 'bg-blue-600 text-white rounded-br-none shadow-lg' : 'apple-glass text-neutral-200 rounded-bl-none shadow-xl'}">
         ${filesHtml}
-        ${toolCallsHtml}
-        ${thoughtHtml}
+        <div class="agent-activity-box">${activityHtml}</div>
         <div class="markdown-body prose prose-invert text-sm leading-relaxed overflow-x-auto select-text">
           ${parsedContent}
         </div>
@@ -335,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dynamicIslandText) dynamicIslandText.textContent = text;
     if (dynamicIslandBadge) {
       dynamicIslandBadge.textContent = badge;
-      dynamicIslandBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all ${isBusy ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-blue-500/20 text-blue-300'}`;
+      dynamicIslandBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all ${isBusy ? 'bg-blue-500/30 text-blue-300 animate-pulse' : 'bg-blue-500/20 text-blue-300'}`;
     }
   }
 
@@ -404,18 +426,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sendBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
-    updateDynamicIsland('Ejecutando Agente...', 'En vivo', true);
+    updateDynamicIsland('Iniciando acciones...', 'En vivo', true);
 
     const assistantMsg = store.addMessage(activeChat.id, {
       role: 'assistant',
-      content: 'Pensando...',
+      content: '',
       thought: '',
-      toolCalls: []
+      toolCalls: [],
+      steps: []
     });
 
     let fullAnswer = '';
     let fullThought = '';
-    let toolList = [];
+    let stepsList = [];
 
     await dify.sendMessage({
       query: text,
@@ -423,26 +446,26 @@ document.addEventListener('DOMContentLoaded', () => {
       chatId: activeChat.id,
       onChunk: (accumulated, chunk) => {
         fullAnswer = accumulated;
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer });
-        updateMessageDOM(assistantMsg.id, fullAnswer, fullThought, toolList);
+        store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer, steps: stepsList });
+        updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
       },
-      onThought: (accumulatedThought, tool, toolInput) => {
+      onThought: (accumulatedThought, action, stepsHistory) => {
         fullThought = accumulatedThought;
-        if (tool && !toolList.includes(tool)) toolList.push(tool);
-        updateDynamicIsland(tool ? `Herramienta: ${tool}` : 'Analizando contexto...', 'Ejecutando', true);
-        store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, toolCalls: toolList });
-        updateMessageDOM(assistantMsg.id, fullAnswer, fullThought, toolList);
+        stepsList = stepsHistory;
+        updateDynamicIsland(action.title, 'En progreso', true);
+        store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, steps: stepsList });
+        updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
       },
-      onComplete: (content, thought, tools) => {
+      onComplete: (content, thought, steps) => {
         sendBtn.classList.remove('hidden');
         stopBtn.classList.add('hidden');
         updateDynamicIsland('En reposo', 'Listo', false);
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, toolCalls: tools });
+        store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, steps: steps || stepsList });
         renderMessages();
         renderSidebar();
         updateTokenCounter();
 
-        // Check for HTML artifacts to render
+        // Auto open HTML preview if present
         if (content && (content.includes('<!DOCTYPE html>') || content.includes('<html') || content.includes('```html'))) {
           const match = content.match(/```html([\s\S]*?)```/);
           const rawHtml = match ? match[1] : (content.includes('<html') ? content : null);
@@ -463,13 +486,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function updateMessageDOM(msgId, content, thought, tools) {
+  function updateMessageDOM(msgId, content, steps, isStreaming = false) {
     const el = document.getElementById(msgId);
     if (!el) {
       renderMessages();
       return;
     }
     const mdBody = el.querySelector('.markdown-body');
+    const activityBox = el.querySelector('.agent-activity-box');
+
+    if (activityBox && steps && steps.length > 0) {
+      activityBox.innerHTML = renderLiveAgentActivity(steps, isStreaming);
+      if (window.lucide) lucide.createIcons();
+    }
+
     if (mdBody) {
       mdBody.innerHTML = formatTextWithLinks(content || '');
     }
@@ -625,7 +655,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fileInput.value = '';
   });
 
-  // Drag and drop onto chat area
   const dropZone = document.getElementById('chat-dropzone');
   if (dropZone) {
     dropZone.addEventListener('dragover', (e) => {
@@ -647,7 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delegated Clicks
   document.addEventListener('click', (e) => {
-    // Intercept chat message link click to open cleanly in Side View
     const chatLink = e.target.closest('#chat-messages a');
     if (chatLink) {
       e.preventDefault();
@@ -660,7 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Slash item click
     const slashItem = e.target.closest('.slash-item');
     if (slashItem) {
       const cmd = slashItem.dataset.cmd;
@@ -668,7 +695,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Insert shortcut from bar
     const insertShortcutBtn = e.target.closest('.btn-insert-shortcut');
     if (insertShortcutBtn) {
       const cmd = insertShortcutBtn.dataset.cmd;
@@ -676,21 +702,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Open Shortcut Manager inline
     if (e.target.closest('#btn-manage-shortcuts-inline')) {
       renderCommandManager();
       modals.commands.classList.remove('hidden');
       return;
     }
 
-    // Quick Prompt Card click
     const promptCard = e.target.closest('.quick-prompt-card');
     if (promptCard) {
       insertTextAtCursor(promptCard.dataset.prompt);
       return;
     }
 
-    // Chat select
     const chatRow = e.target.closest('.chat-item-row');
     if (chatRow && !e.target.closest('.btn-pin-chat') && !e.target.closest('.btn-del-chat')) {
       const chatId = chatRow.dataset.chatId;
@@ -701,7 +724,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Chat Pin
     const pinBtn = e.target.closest('.btn-pin-chat');
     if (pinBtn) {
       const chatId = pinBtn.dataset.chatId;
@@ -711,7 +733,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Chat Delete
     const delBtn = e.target.closest('.btn-del-chat');
     if (delBtn) {
       const chatId = delBtn.dataset.chatId;
@@ -723,7 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Project Delete
     const delProjBtn = e.target.closest('.btn-del-proj');
     if (delProjBtn) {
       const pId = delProjBtn.dataset.projectId;
@@ -735,11 +755,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Folder Delete
     const delFolderBtn = e.target.closest('.btn-del-folder');
     if (delFolderBtn) {
       const fId = delFolderBtn.dataset.folderId;
-      if (confirm('¿Eliminar esta carpeta? (Los chats quedarán como sueltos en el proyecto)')) {
+      if (confirm('¿Eliminar esta carpeta? (Los chats quedarán en el proyecto)')) {
         store.deleteFolder(fId);
         renderSidebar();
         renderMessages();
@@ -747,7 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Download Single Folder as ZIP
     const dlFolderBtn = e.target.closest('.btn-download-folder');
     if (dlFolderBtn) {
       const fId = dlFolderBtn.dataset.folderId;
@@ -755,7 +773,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Download Single Project as ZIP
     const dlProjBtn = e.target.closest('.btn-download-project');
     if (dlProjBtn) {
       const pId = dlProjBtn.dataset.projectId;
@@ -763,7 +780,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Add Folder to Project
     const addFolderBtn = e.target.closest('.btn-add-folder');
     if (addFolderBtn) {
       const pId = addFolderBtn.dataset.projectId;
@@ -775,7 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Add Chat in Project
     const addProjChatBtn = e.target.closest('.btn-add-proj-chat');
     if (addProjChatBtn) {
       const pId = addProjChatBtn.dataset.projectId;
@@ -785,7 +800,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Add Chat in Folder
     const addFolderChatBtn = e.target.closest('.btn-add-folder-chat');
     if (addFolderChatBtn) {
       const pId = addFolderChatBtn.dataset.projectId;
@@ -796,7 +810,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Copy message
     const copyMsgBtn = e.target.closest('.btn-copy-msg');
     if (copyMsgBtn) {
       const msgId = copyMsgBtn.dataset.msgId;
@@ -814,7 +827,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Edit message
     const editMsgBtn = e.target.closest('.btn-edit-msg');
     if (editMsgBtn) {
       const msgId = editMsgBtn.dataset.msgId;
@@ -827,7 +839,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Open Canvas from message button
     const openCanvasBtn = e.target.closest('.btn-open-canvas');
     if (openCanvasBtn) {
       const msgId = openCanvasBtn.dataset.msgId;
@@ -855,7 +866,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Remove pending attachment
     const removeAttBtn = e.target.closest('.btn-remove-attachment');
     if (removeAttBtn) {
       const idx = parseInt(removeAttBtn.dataset.index, 10);
@@ -873,14 +883,12 @@ document.addEventListener('DOMContentLoaded', () => {
     store.save();
   });
 
-  // --- New Chat Button ---
   document.getElementById('btn-new-chat')?.addEventListener('click', () => {
     store.addChat({ title: 'Nueva Conversación' });
     renderSidebar();
     renderMessages();
   });
 
-  // --- New Project Button ---
   document.getElementById('btn-new-project')?.addEventListener('click', () => {
     const name = prompt('Nombre del nuevo proyecto:');
     if (name) {
@@ -947,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
     store.addLog('info', 'Configuración de API actualizada');
   });
 
-  // --- Command Manager Render & Logic (CRUD Completo) ---
+  // --- Command Manager Render & Logic ---
   function renderCommandManager() {
     const listEl = document.getElementById('command-manager-list');
     if (!listEl) return;
@@ -970,7 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) lucide.createIcons();
   }
 
-  // Add / Edit Command Form
   const formAddCommand = document.getElementById('form-add-command');
   const inputCmdId = document.getElementById('edit-cmd-id');
   const inputCmdName = document.getElementById('new-cmd-name');
@@ -1038,7 +1045,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Prompt Gallery Render & Logic (CRUD Completo) ---
+  // --- Prompt Gallery Render & Logic ---
   const formPrompt = document.getElementById('form-prompt-editor');
   const inputPromptId = document.getElementById('edit-prompt-id');
   const inputPromptTitle = document.getElementById('prompt-input-title');
@@ -1404,15 +1411,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnRefreshPreview) {
     btnRefreshPreview.addEventListener('click', () => {
       canvas.renderPreview(canvas.currentContent);
-    });
-  }
-
-  // Handle iframe load errors gracefully
-  const previewFrame = document.getElementById('canvas-preview-frame');
-  const fallbackBanner = document.getElementById('iframe-fallback-banner');
-  if (previewFrame && fallbackBanner) {
-    previewFrame.addEventListener('error', () => {
-      fallbackBanner.classList.remove('hidden');
     });
   }
 
