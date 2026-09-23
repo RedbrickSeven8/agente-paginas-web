@@ -21,7 +21,7 @@ class Store {
       config: {
         apiUrl: 'https://api.dify.ai/v1',
         apiKey: 'app-CSpN9ANweE2UjmdYvMqjURaF',
-        userId: 'studio_user_default',
+        userId: 'Dani',
         supabaseUrl: supaDefaults.supabaseUrl,
         supabaseKey: supaDefaults.supabaseKey,
         theme: 'dark',
@@ -114,9 +114,7 @@ class Store {
         
         // Force unified default user ID if not explicitly set
         const config = { ...defaults.config, ...(parsed.config || {}) };
-        if (!config.userId || config.userId.startsWith('user-')) {
-          config.userId = 'studio_user_default';
-        }
+        config.userId = 'Dani';
         if (!config.supabaseUrl) config.supabaseUrl = supaDefaults.supabaseUrl;
         if (!config.supabaseKey) config.supabaseKey = supaDefaults.supabaseKey;
 

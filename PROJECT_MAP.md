@@ -4,7 +4,7 @@
 
 ```mermaid
 graph TD
-    User([Usuario Multi-dispositivo: Mac, iPad, iPhone, Android, PC]) --> WebApp[Studio Agent WebApp]
+    User([Usuario Global: Dani • Multi-dispositivo: Mac, iPad, iPhone, Android, PC]) --> WebApp[Studio Agent WebApp]
     
     subgraph UI_UX [UI / UX Apple-Centric & Mobile-First]
         Nav[Dynamic Island, Sync Status Bar & Navigation Bar]

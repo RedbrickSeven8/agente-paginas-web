@@ -45,7 +45,7 @@ class CloudSyncService {
     
     const url = (config.supabaseUrl || localStorage.getItem('studio_supabase_url') || defaultUrl).trim().replace(/\/+$/, '');
     const key = (config.supabaseKey || localStorage.getItem('studio_supabase_key') || defaultKey).trim();
-    const userId = (config.userId || localStorage.getItem('studio_user_id') || 'studio_user_default').trim();
+    const userId = (config.userId || localStorage.getItem('studio_user_id') || 'Dani').trim();
 
     return { url, key, userId };
   }
@@ -239,7 +239,7 @@ class CloudSyncService {
       return null;
     }
 
-    const targetUser = (userId || 'studio_user_default').trim();
+    const targetUser = (userId || 'Dani').trim();
     const safeUserId = targetUser.replace(/[^a-zA-Z0-9_-]/g, '_');
     const { url, key } = this.getSupabaseConfig();
 
@@ -351,7 +351,7 @@ class CloudSyncService {
       // Don't pull immediately right after a local push to prevent race conditions
       if (Date.now() - this.lastPushTime < 1500) return;
       
-      const userId = getUserId() || 'studio_user_default';
+      const userId = getUserId() || 'Dani';
       if (!this.isSyncing) {
         this.isSyncing = true;
         await this.pullState(userId, onRemoteUpdate);
