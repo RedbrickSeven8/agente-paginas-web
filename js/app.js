@@ -944,8 +944,10 @@ document.addEventListener('DOMContentLoaded', () => {
   sidebarBackdropEl?.addEventListener('click', closeMobileSidebar);
 
   document.getElementById('btn-new-chat')?.addEventListener('click', () => {
-    const activeProject = store.state.activeProjectId || (store.state.projects[0]?.id || null);
-    store.addChat({ title: 'Nueva Conversación', projectId: activeProject });
+    // Si hay un proyecto seleccionado, crea el chat dentro de ese proyecto.
+    // Si no hay ningún proyecto seleccionado (activeProjectId === null), crea el chat en Conversaciones sueltas (projectId: null).
+    const targetProject = store.state.activeProjectId || null;
+    store.addChat({ title: 'Nueva Conversación', projectId: targetProject });
     renderSidebar();
     renderMessages();
   });

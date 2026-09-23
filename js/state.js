@@ -360,11 +360,11 @@ class Store {
     let title = 'Nueva Conversación';
 
     if (arg1 && typeof arg1 === 'object' && !Array.isArray(arg1)) {
-      projectId = arg1.projectId || this.state.activeProjectId;
+      projectId = ('projectId' in arg1) ? arg1.projectId : this.state.activeProjectId;
       folderId = arg1.folderId || null;
       title = arg1.title || 'Nueva Conversación';
     } else {
-      projectId = arg1 || this.state.activeProjectId;
+      projectId = (arg1 !== undefined && arg1 !== null) ? arg1 : this.state.activeProjectId;
       folderId = arg2 || null;
       title = arg3 || 'Nueva Conversación';
     }
@@ -372,7 +372,7 @@ class Store {
     const chat = {
       id: 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       title: title || 'Nueva Conversación',
-      projectId: projectId || this.state.activeProjectId || (this.state.projects[0]?.id || null),
+      projectId: projectId || null,
       folderId: folderId || null,
       pinned: false,
       archived: false,
