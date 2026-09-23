@@ -380,17 +380,25 @@
             Usa el mismo ID en Mac, iPad y móvil para sincronizar tus proyectos en tiempo real.
           </p>
         </div>
-        <div class="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-2">
-          <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-xs">
-            <i data-lucide="database" class="w-3.5 h-3.5"></i>
-            <span>Base de Datos Supabase (Opcional / Recomendado)</span>
+        <div class="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-xs">
+              <i data-lucide="database" class="w-3.5 h-3.5"></i>
+              <span>Supabase Cloud Sync (Conectado Universal)</span>
+            </div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>Activo
+            </span>
           </div>
+          <p class="text-[11px] text-neutral-400 leading-relaxed">
+            Sincronización multi-dispositivo en tiempo real (Desktop, Tablet y Móvil) mediante la base de datos y buckets de Supabase.
+          </p>
           <div>
             <label class="block text-neutral-400 mb-1 text-[11px]">Supabase Project URL:</label>
             <input type="text" id="setting-supabase-url" placeholder="https://xyzproject.supabase.co" class="w-full p-2 rounded-lg bg-black/40 border border-white/10 text-neutral-200 font-mono text-[11px] focus:outline-none focus:border-emerald-500">
           </div>
           <div>
-            <label class="block text-neutral-400 mb-1 text-[11px]">Supabase Anon API Key:</label>
+            <label class="block text-neutral-400 mb-1 text-[11px]">Supabase Key / Service Role Token:</label>
             <input type="password" id="setting-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsIn..." class="w-full p-2 rounded-lg bg-black/40 border border-white/10 text-neutral-200 font-mono text-[11px] focus:outline-none focus:border-emerald-500">
           </div>
         </div>

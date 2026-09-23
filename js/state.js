@@ -8,12 +8,22 @@ class Store {
     this.initSync();
   }
 
+  getDefaultDefaultsSupabase() {
+    return {
+      supabaseUrl: 'https://hnseeyykbckcofnrwirv.supabase.co',
+      supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhuc2VleXlrYmNrY29mbnJ3aXJ2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDExMDQ3MiwiZXhwIjoyMTA1Njg2NDcyfQ.j-XHRLth6X2UpU4QfjmMjHjG7lB-fF6JIhlRnblFock'
+    };
+  }
+
   getDefaults() {
+    const supaDefaults = this.getDefaultDefaultsSupabase();
     return {
       config: {
         apiUrl: 'https://api.dify.ai/v1',
         apiKey: 'app-CSpN9ANweE2UjmdYvMqjURaF',
         userId: 'studio_user_default',
+        supabaseUrl: supaDefaults.supabaseUrl,
+        supabaseKey: supaDefaults.supabaseKey,
         theme: 'dark',
         zenMode: false
       },
@@ -47,7 +57,7 @@ class Store {
             {
               id: 'msg_welcome_1',
               role: 'assistant',
-              content: '¡Bienvenido a **Studio Agent**! Tu espacio de trabajo para creación, desarrollo y optimización de páginas web modernas con estética minimalista Apple.\n\nPuedes usar los comandos rápidos como `/landing`, `/variaspaginas`, `/crealasimagenes` o `/creartextos` para comenzar de inmediato.',
+              content: '¡Bienvenido a **Studio Agent**! Tu espacio de trabajo para creación, desarrollo y optimización de páginas web modernas con sincronización en tiempo real con Supabase.\n\nPuedes usar los comandos rápidos como `/landing`, `/variaspaginas`, `/crealasimagenes` o `/creartextos` para comenzar de inmediato.',
               files: [],
               thought: '',
               toolCalls: [],
@@ -56,7 +66,7 @@ class Store {
                   id: 'step_init_1',
                   title: 'Entorno de desarrollo listo',
                   type: 'terminal',
-                  detail: 'Workspace sincronizado para móviles, tablets y desktop',
+                  detail: 'Workspace sincronizado universalmente con Supabase',
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }
               ],
@@ -96,15 +106,19 @@ class Store {
   load() {
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
+      const defaults = this.getDefaults();
+      const supaDefaults = this.getDefaultDefaultsSupabase();
+
       if (saved) {
         const parsed = JSON.parse(saved);
-        const defaults = this.getDefaults();
         
         // Force unified default user ID if not explicitly set
         const config = { ...defaults.config, ...(parsed.config || {}) };
         if (!config.userId || config.userId.startsWith('user-')) {
           config.userId = 'studio_user_default';
         }
+        if (!config.supabaseUrl) config.supabaseUrl = supaDefaults.supabaseUrl;
+        if (!config.supabaseKey) config.supabaseKey = supaDefaults.supabaseKey;
 
         const stateObj = {
           ...defaults,
@@ -219,6 +233,11 @@ class Store {
       }
     }
 
+    // 6. Token Usage
+    if (remote.tokenUsage && typeof remote.tokenUsage === 'object') {
+      this.state.tokenUsage = remote.tokenUsage;
+    }
+
     if (hasChanges) {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
       this.notify();
@@ -236,14 +255,19 @@ class Store {
     this.listeners.forEach(fn => fn(this.state));
   }
 
-  // --- Projects CRUD ---
+  // --- Projects ---
   addProject(name, icon = 'folder') {
-    const id = 'proj_' + Date.now();
-    const proj = { id, name: name.trim(), icon, createdAt: new Date().toISOString(), archived: false };
-    this.state.projects.push(proj);
-    this.state.activeProjectId = id;
+    const project = {
+      id: 'proj_' + Date.now(),
+      name: name || 'Nuevo Proyecto',
+      icon,
+      createdAt: new Date().toISOString(),
+      archived: false
+    };
+    this.state.projects.push(project);
+    this.state.activeProjectId = project.id;
     this.save();
-    return proj;
+    return project;
   }
 
   updateProject(id, updates) {
@@ -259,24 +283,29 @@ class Store {
     this.state.folders = this.state.folders.filter(x => x.projectId !== id);
     this.state.chats = this.state.chats.filter(x => x.projectId !== id);
     if (this.state.activeProjectId === id) {
-      this.state.activeProjectId = this.state.projects.length > 0 ? this.state.projects[0].id : null;
+      this.state.activeProjectId = this.state.projects[0]?.id || null;
+      this.state.activeChatId = this.state.chats.find(c => c.projectId === this.state.activeProjectId)?.id || null;
     }
     this.save();
   }
 
-  // --- Folders CRUD ---
+  // --- Folders ---
   addFolder(name, projectId) {
-    const id = 'fold_' + Date.now();
-    const folder = { id, name: name.trim(), projectId, createdAt: new Date().toISOString() };
+    const folder = {
+      id: 'fold_' + Date.now(),
+      name: name || 'Nueva Carpeta',
+      projectId: projectId || this.state.activeProjectId,
+      createdAt: new Date().toISOString()
+    };
     this.state.folders.push(folder);
     this.save();
     return folder;
   }
 
-  updateFolder(id, updates) {
+  updateFolder(id, name) {
     const f = this.state.folders.find(x => x.id === id);
     if (f) {
-      Object.assign(f, updates);
+      f.name = name;
       this.save();
     }
   }
@@ -289,32 +318,32 @@ class Store {
     this.save();
   }
 
-  // --- Chats CRUD ---
-  addChat({ title = 'Nueva Conversación', projectId = null, folderId = null, tags = [] }) {
-    const id = 'chat_' + Date.now();
+  // --- Chats ---
+  addChat(projectId = null, folderId = null, title = 'Nueva Conversación') {
     const chat = {
-      id,
-      title: title.trim(),
-      projectId,
-      folderId,
+      id: 'chat_' + Date.now(),
+      title,
+      projectId: projectId || this.state.activeProjectId,
+      folderId: folderId || null,
       pinned: false,
       archived: false,
-      tags,
+      tags: [],
       messages: [],
       difyConversationId: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     this.state.chats.unshift(chat);
-    this.state.activeChatId = id;
+    this.state.activeChatId = chat.id;
     this.save();
     return chat;
   }
 
   updateChat(id, updates) {
-    const c = this.state.chats.find(x => x.id === id);
-    if (c) {
-      Object.assign(c, updates, { updatedAt: new Date().toISOString() });
+    const chat = this.state.chats.find(x => x.id === id);
+    if (chat) {
+      Object.assign(chat, updates);
+      chat.updatedAt = new Date().toISOString();
       this.save();
     }
   }
@@ -322,61 +351,9 @@ class Store {
   deleteChat(id) {
     this.state.chats = this.state.chats.filter(x => x.id !== id);
     if (this.state.activeChatId === id) {
-      this.state.activeChatId = this.state.chats.length > 0 ? this.state.chats[0].id : null;
+      const remaining = this.state.chats.filter(c => c.projectId === this.state.activeProjectId);
+      this.state.activeChatId = remaining[0]?.id || null;
     }
-    this.save();
-  }
-
-  getActiveChat() {
-    return this.state.chats.find(x => x.id === this.state.activeChatId) || null;
-  }
-
-  // --- Prompts Templates CRUD ---
-  addPrompt(title, text) {
-    const id = 'prompt_' + Date.now();
-    const newPrompt = { id, title: title.trim(), text: text.trim() };
-    this.state.promptTemplates.unshift(newPrompt);
-    this.save();
-    return newPrompt;
-  }
-
-  updatePrompt(id, updates) {
-    const p = this.state.promptTemplates.find(x => x.id === id);
-    if (p) {
-      Object.assign(p, updates);
-      this.save();
-    }
-  }
-
-  deletePrompt(id) {
-    this.state.promptTemplates = this.state.promptTemplates.filter(x => x.id !== id);
-    this.save();
-  }
-
-  // --- Commands / Atajos CRUD ---
-  addCommand(name, desc, icon = 'terminal') {
-    let cleanName = name.trim();
-    if (!cleanName.startsWith('/')) cleanName = '/' + cleanName;
-    const id = 'cmd_' + Date.now();
-    const newCmd = { id, name: cleanName, desc: desc.trim(), icon };
-    this.state.customCommands.push(newCmd);
-    this.save();
-    return newCmd;
-  }
-
-  updateCommand(id, updates) {
-    const c = this.state.customCommands.find(x => x.id === id);
-    if (c) {
-      if (updates.name && !updates.name.startsWith('/')) {
-        updates.name = '/' + updates.name.trim();
-      }
-      Object.assign(c, updates);
-      this.save();
-    }
-  }
-
-  deleteCommand(id) {
-    this.state.customCommands = this.state.customCommands.filter(x => x.id !== id);
     this.save();
   }
 
