@@ -308,12 +308,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (msg.files && msg.files.length > 0) {
       filesHtml = `
         <div class="flex flex-wrap gap-2 mb-2">
-          ${msg.files.map(f => `
-            <div class="flex items-center space-x-2 bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-neutral-300">
-              <i data-lucide="paperclip" class="w-3.5 h-3.5 text-blue-400"></i>
-              <span class="truncate max-w-[150px]">${escapeHtml(f.name || 'Archivo')}</span>
-            </div>
-          `).join('')}
+          ${msg.files.map(f => {
+            const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+            return `
+              <div class="flex items-center space-x-2 bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm backdrop-blur-sm">
+                <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0"></i>
+                <span class="truncate max-w-[160px] font-medium">${escapeHtml(f.name || 'Archivo adjunto')}</span>
+                ${f.size ? `<span class="text-[10px] text-neutral-500 font-mono">${(f.size/1024).toFixed(0)}KB</span>` : ''}
+              </div>
+            `;
+          }).join('')}
         </div>
       `;
     }
@@ -526,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scrollToBottom();
   }
 
-  // --- Attachments & File Handling ---
+  // --- Attachments & File Handling (Files, Images & Documents with Paste Support) ---
   function renderAttachmentDock() {
     if (pendingAttachments.length === 0) {
       attachmentDock.classList.add('hidden');
@@ -534,15 +538,19 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     attachmentDock.classList.remove('hidden');
-    attachmentDock.innerHTML = pendingAttachments.map((f, idx) => `
-      <div class="flex items-center space-x-2 bg-neutral-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-neutral-200">
-        <i data-lucide="${f.type.startsWith('image') ? 'image' : 'file'}" class="w-3.5 h-3.5 text-blue-400"></i>
-        <span class="truncate max-w-[120px]">${escapeHtml(f.name)}</span>
-        <button class="btn-remove-attachment p-0.5 hover:text-red-400" data-index="${idx}">
-          <i data-lucide="x" class="w-3 h-3"></i>
-        </button>
-      </div>
-    `).join('');
+    attachmentDock.innerHTML = pendingAttachments.map((f, idx) => {
+      const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+      return `
+        <div class="flex items-center space-x-2 bg-neutral-900/90 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm transition-all hover:border-blue-500/30">
+          <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0"></i>
+          <span class="truncate max-w-[130px] font-medium">${escapeHtml(f.name)}</span>
+          <span class="text-[10px] text-neutral-500 font-mono">${(f.size / 1024).toFixed(0)}KB</span>
+          <button class="btn-remove-attachment p-1 rounded-md hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors" data-index="${idx}" title="Eliminar adjunto">
+            <i data-lucide="x" class="w-3 h-3"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
     if (window.lucide) lucide.createIcons();
   }
 
@@ -555,12 +563,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const uploadRes = await dify.uploadFile(file);
         pendingAttachments.push({
           id: uploadRes.id,
-          name: file.name,
-          type: file.type || 'document',
+          name: file.name || (file.type && file.type.startsWith('image') ? 'imagen_pegada.png' : 'documento_adjunto'),
+          type: file.type || 'application/octet-stream',
           size: file.size
         });
       } catch (err) {
-        alert(`Error al subir ${file.name}: ${err.message}`);
+        alert(`Error al subir ${file.name || 'archivo'}: ${err.message}`);
       }
     }
     renderAttachmentDock();
@@ -665,6 +673,50 @@ document.addEventListener('DOMContentLoaded', () => {
       handleSendMessage();
     }
   });
+
+  // Support pasting images and documents directly in chat input
+  chatInputEl.addEventListener('paste', async (e) => {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+
+    const items = clipboardData.items;
+    const filesToUpload = [];
+
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            let fileName = file.name;
+            if (!fileName || fileName === 'image.png' || fileName === 'blob') {
+              const ext = file.type ? (file.type.split('/')[1] || 'png') : 'png';
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+              fileName = file.type.startsWith('image/') ? `captura_${timestamp}.${ext}` : `documento_${timestamp}.${ext}`;
+              const namedFile = new File([file], fileName, { type: file.type });
+              filesToUpload.push(namedFile);
+            } else {
+              filesToUpload.push(file);
+            }
+          }
+        }
+      }
+    } else if (clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        filesToUpload.push(clipboardData.files[i]);
+      }
+    }
+
+    if (filesToUpload.length > 0) {
+      // Don't prevent default if there is also text being pasted, unless user is pasting pure file
+      const hasText = clipboardData.getData('text/plain');
+      if (!hasText) {
+        e.preventDefault();
+      }
+      await handleFileUpload(filesToUpload);
+    }
+  });
+
 
   // --- Buttons & Action Delegations ---
   sendBtn.addEventListener('click', handleSendMessage);
@@ -981,15 +1033,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Modals Setup ---
   const modals = {
-    settings: document.getElementById('modal-settings'),
     commands: document.getElementById('modal-commands'),
     debugger: document.getElementById('modal-debugger'),
     export: document.getElementById('modal-export'),
     search: document.getElementById('modal-search'),
     prompts: document.getElementById('modal-prompts')
   };
-
-  document.getElementById('btn-open-settings')?.addEventListener('click', () => modals.settings.classList.remove('hidden'));
   document.getElementById('btn-open-commands')?.addEventListener('click', () => {
     renderCommandManager();
     modals.commands.classList.remove('hidden');
@@ -1026,43 +1075,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // --- Settings Form ---
-  const settingApiUrl = document.getElementById('setting-api-url');
-  const settingApiKey = document.getElementById('setting-api-key');
-  const settingUserId = document.getElementById('setting-user-id');
-  const settingSupabaseUrl = document.getElementById('setting-supabase-url');
-  const settingSupabaseKey = document.getElementById('setting-supabase-key');
-  const settingTheme = document.getElementById('setting-theme');
-
-  if (settingApiUrl) settingApiUrl.value = store.state.config.apiUrl || '';
-  if (settingApiKey) settingApiKey.value = store.state.config.apiKey || '';
-  if (settingUserId) settingUserId.value = store.state.config.userId || 'studio_user_default';
-  if (settingSupabaseUrl) settingSupabaseUrl.value = store.state.config.supabaseUrl || localStorage.getItem('studio_supabase_url') || '';
-  if (settingSupabaseKey) settingSupabaseKey.value = store.state.config.supabaseKey || localStorage.getItem('studio_supabase_key') || '';
-  if (settingTheme) settingTheme.value = store.state.config.theme || 'dark';
-
-  document.getElementById('form-settings')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    store.state.config.apiUrl = settingApiUrl.value.trim();
-    store.state.config.apiKey = settingApiKey.value.trim();
-    store.state.config.userId = settingUserId.value.trim();
-    if (settingSupabaseUrl) {
-      store.state.config.supabaseUrl = settingSupabaseUrl.value.trim();
-      localStorage.setItem('studio_supabase_url', settingSupabaseUrl.value.trim());
-    }
-    if (settingSupabaseKey) {
-      store.state.config.supabaseKey = settingSupabaseKey.value.trim();
-      localStorage.setItem('studio_supabase_key', settingSupabaseKey.value.trim());
-    }
-    store.state.config.theme = settingTheme.value;
-    document.documentElement.setAttribute('data-theme', settingTheme.value);
-    store.save();
-    modals.settings.classList.add('hidden');
-    store.addLog('info', 'Configuración actualizada y sincronizada');
-    if (window.cloudSyncService) {
-      window.cloudSyncService.pushState(store.state);
-    }
-  });
+  // Settings managed automatically via cloud synchronization engine
 
   // --- Command Manager Render & Logic ---
   function renderCommandManager() {
@@ -1615,6 +1628,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-top-sync-trigger')?.addEventListener('click', () => {
-    document.getElementById('modal-settings')?.classList.remove('hidden');
+    if (window.cloudSyncService && window.appStore) {
+      window.cloudSyncService.updateSyncBadge('Sincronizando');
+      window.cloudSyncService.pushState(window.appStore.state);
+    }
+  });
+  document.getElementById('top-sync-bar')?.addEventListener('click', () => {
+    if (window.cloudSyncService && window.appStore) {
+      window.cloudSyncService.updateSyncBadge('Sincronizando');
+      window.cloudSyncService.pushState(window.appStore.state);
+    }
   });
 });

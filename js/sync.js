@@ -4,10 +4,35 @@ class CloudSyncService {
   constructor() {
     this.isSyncing = false;
     this.syncTimer = null;
-    this.pollInterval = 3000;
+    this.pollInterval = 4000;
     this.lastKnownRemoteHash = null;
     this.lastPushedHash = null;
     this.lastPushTime = 0;
+    this.lastSyncDate = null;
+    this.currentStatus = 'Sincronizado'; // 'Sincronizado' | 'Sincronizando' | 'Offline'
+    
+    // Load last sync date from localStorage if available
+    try {
+      const savedDate = localStorage.getItem('studio_last_sync_date');
+      if (savedDate) {
+        this.lastSyncDate = new Date(savedDate);
+      }
+    } catch (e) {}
+
+    // Online / Offline window listeners
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.updateSyncBadge('Sincronizando');
+        if (window.appStore) {
+          this.pullState(this.getSupabaseConfig().userId, (data) => {
+            window.appStore.mergeRemoteData(data);
+          });
+        }
+      });
+      window.addEventListener('offline', () => {
+        this.updateSyncBadge('Offline');
+      });
+    }
   }
 
   // Pre-configured official project credentials + localStorage override
@@ -45,10 +70,30 @@ class CloudSyncService {
     }
   }
 
+  formatLastSyncDate(date) {
+    if (!date || isNaN(date.getTime())) return 'Nunca';
+    try {
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    } catch (e) {
+      return date.toLocaleTimeString();
+    }
+  }
+
   // Push local state to Supabase Cloud Storage & REST
   async pushState(state) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.updateSyncBadge('Offline');
+      return false;
+    }
+
     const { url, key, userId } = this.getSupabaseConfig();
-    this.updateSyncBadge('Sincronizando...', true);
+    this.updateSyncBadge('Sincronizando');
 
     const userPayload = {
       version: '2.0',
@@ -89,7 +134,8 @@ class CloudSyncService {
 
         if (storageRes.ok) {
           pushSucceeded = true;
-          this.updateSyncBadge('Supabase OK', false);
+          this.setLastSyncTime(new Date());
+          this.updateSyncBadge('Sincronizado');
         } else {
           // If upsert via POST failed, try PUT
           const putRes = await fetch(`${url}/storage/v1/object/agent-files/${remoteFilePath}`, {
@@ -103,33 +149,41 @@ class CloudSyncService {
           });
           if (putRes.ok) {
             pushSucceeded = true;
-            this.updateSyncBadge('Supabase OK', false);
+            this.setLastSyncTime(new Date());
+            this.updateSyncBadge('Sincronizado');
           }
         }
       } catch (err) {
         console.warn('Supabase storage push error:', err);
       }
 
-      // Also attempt REST table workspaces (in case table is created)
+      // Try Supabase PostgreSQL Table via REST as secondary backup
       try {
-        await fetch(`${url}/rest/v1/workspaces?on_conflict=user_id`, {
+        const restRes = await fetch(`${url}/rest/v1/workspaces`, {
           method: 'POST',
           headers: {
             'apikey': key,
             'Authorization': `Bearer ${key}`,
             'Content-Type': 'application/json',
-            'Prefer': 'resolution=merge-duplicates,return=minimal'
+            'Prefer': 'resolution=merge-duplicates'
           },
           body: JSON.stringify({
-            user_id: userId,
+            user_id: safeUserId,
             data: userPayload,
             updated_at: new Date().toISOString()
           })
-        }).catch(() => {});
-      } catch (e) {}
+        });
+        if (restRes.ok) {
+          pushSucceeded = true;
+          this.setLastSyncTime(new Date());
+          this.updateSyncBadge('Sincronizado');
+        }
+      } catch (err) {
+        // Ignored
+      }
     }
 
-    // 2. Persistent Universal Fallback (Gist Cloud / REST)
+    // 2. Universal Cloud Gist Sync Backup (Works seamlessly across devices out-of-the-box)
     try {
       const gistId = '0a711dd2d7d16e0152ec8c4a3f6ba403';
       const token = ['ghp_WIgi4Je7QyGf', 'lHlO67iU2YQ1gI3h', 'b9bA3B22'].join('');
@@ -139,62 +193,74 @@ class CloudSyncService {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github+json'
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           files: {
-            [fileName]: { content: JSON.stringify(userPayload, null, 2) }
+            [fileName]: {
+              content: JSON.stringify(userPayload, null, 2)
+            }
           }
         })
       });
 
       if (patchRes.ok) {
         pushSucceeded = true;
-        if (!this.isSupabaseConfigured()) {
-          this.updateSyncBadge('Nube OK', false);
-        }
+        this.setLastSyncTime(new Date());
+        this.updateSyncBadge('Sincronizado');
       }
     } catch (err) {
       console.warn('Universal gist push fallback error:', err);
     }
 
     if (!pushSucceeded) {
-      this.updateSyncBadge('Local', false);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        this.updateSyncBadge('Offline');
+      } else {
+        this.updateSyncBadge('Offline');
+      }
     }
 
     return pushSucceeded;
   }
 
-  // Pull state from Supabase Cloud / Fallback
+  setLastSyncTime(date) {
+    this.lastSyncDate = date;
+    try {
+      localStorage.setItem('studio_last_sync_date', date.toISOString());
+    } catch (e) {}
+  }
+
+  // Pull remote state from Supabase Cloud Storage or REST
   async pullState(userId, onMerge) {
-    const { url, key } = this.getSupabaseConfig();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.updateSyncBadge('Offline');
+      return null;
+    }
+
     const targetUser = (userId || 'studio_user_default').trim();
     const safeUserId = targetUser.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const { url, key } = this.getSupabaseConfig();
 
-    // 1. Primary Supabase Fetch via Storage Object
+    // 1. Primary: Supabase Storage
     if (this.isSupabaseConfigured()) {
       try {
         const remoteFilePath = `workspaces/${safeUserId}.json`;
-        // Fetch from Supabase Public Storage URL with cache bust
-        const fetchUrl = `${url}/storage/v1/object/public/agent-files/${remoteFilePath}?_t=${Date.now()}`;
-        const supaRes = await fetch(fetchUrl, {
-          cache: 'no-store',
-          headers: {
-            'apikey': key,
-            'Authorization': `Bearer ${key}`
-          }
+        const res = await fetch(`${url}/storage/v1/object/public/agent-files/${remoteFilePath}?_t=${Date.now()}`, {
+          cache: 'no-store'
         });
 
-        if (supaRes.ok) {
-          const remoteData = await supaRes.json();
+        if (res.ok) {
+          const remoteData = await res.json();
           if (remoteData && typeof remoteData === 'object' && (remoteData.projects || remoteData.chats)) {
             const remoteHash = this.computeHash(remoteData);
             if (remoteHash !== this.lastPushedHash && remoteHash !== this.lastKnownRemoteHash) {
               this.lastKnownRemoteHash = remoteHash;
               if (onMerge) onMerge(remoteData);
             }
-            this.updateSyncBadge('Supabase OK', false);
+            this.setLastSyncTime(new Date());
+            this.updateSyncBadge('Sincronizado');
             return remoteData;
           }
         }
@@ -221,7 +287,8 @@ class CloudSyncService {
               this.lastKnownRemoteHash = remoteHash;
               if (onMerge) onMerge(remoteData);
             }
-            this.updateSyncBadge('Supabase OK', false);
+            this.setLastSyncTime(new Date());
+            this.updateSyncBadge('Sincronizado');
             return remoteData;
           }
         }
@@ -254,7 +321,8 @@ class CloudSyncService {
                 this.lastKnownRemoteHash = remoteHash;
                 if (onMerge) onMerge(remoteData);
               }
-              this.updateSyncBadge('Nube OK', false);
+              this.setLastSyncTime(new Date());
+              this.updateSyncBadge('Sincronizado');
               return remoteData;
             }
           }
@@ -264,12 +332,22 @@ class CloudSyncService {
       console.warn('Universal gist pull fallback error:', err);
     }
 
+    // If completely offline or unreachable
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.updateSyncBadge('Offline');
+    }
+
     return null;
   }
 
   startPolling(getUserId, onRemoteUpdate) {
     if (this.syncTimer) clearInterval(this.syncTimer);
     this.syncTimer = setInterval(async () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        this.updateSyncBadge('Offline');
+        return;
+      }
+
       // Don't pull immediately right after a local push to prevent race conditions
       if (Date.now() - this.lastPushTime < 1500) return;
       
@@ -282,18 +360,49 @@ class CloudSyncService {
     }, this.pollInterval);
   }
 
-  updateSyncBadge(text, isSpinning = false) {
+  updateSyncBadge(status) {
+    // Normalize status into one of: 'Sincronizado', 'Sincronizando', 'Offline'
+    let text = 'Sincronizado';
+    let dotColor = 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
+    let pulseAnim = '';
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      status = 'Offline';
+    }
+
+    if (status === 'Sincronizando' || status.includes('Sincronizando') || status.includes('Cargando')) {
+      text = 'Sincronizando';
+      dotColor = 'bg-amber-400';
+      pulseAnim = 'animate-spin';
+    } else if (status === 'Offline' || status.includes('Offline') || status.includes('Local') || status.includes('Desconectado')) {
+      text = 'Offline';
+      dotColor = 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]';
+      pulseAnim = '';
+    } else {
+      text = 'Sincronizado';
+      dotColor = 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
+      pulseAnim = '';
+    }
+
+    this.currentStatus = text;
+    const timeFormatted = this.formatLastSyncDate(this.lastSyncDate);
+
     const badges = document.querySelectorAll('.sync-status-badge');
     badges.forEach(badge => {
-      let dotColor = 'bg-emerald-400';
-      if (isSpinning) dotColor = 'bg-amber-400 animate-ping';
-      else if (text.includes('Supabase')) dotColor = 'bg-emerald-400 shadow-[0_0_8px_#30d158]';
-      else if (text.includes('Nube')) dotColor = 'bg-cyan-400 shadow-[0_0_8px_#00f0ff]';
-      else if (text.includes('Local')) dotColor = 'bg-neutral-500';
+      let iconOrDot = `<span class="w-2 h-2 rounded-full ${dotColor}"></span>`;
+      if (text === 'Sincronizando') {
+        iconOrDot = `<span class="w-2 h-2 rounded-full border-2 border-amber-400 border-t-transparent animate-spin inline-block"></span>`;
+      }
 
       badge.innerHTML = `
-        <span class="w-2 h-2 rounded-full ${dotColor}"></span>
-        <span class="text-[10px] text-neutral-300 font-mono uppercase tracking-wider">${text}</span>
+        <div class="flex items-center space-x-1.5 shrink-0">
+          ${iconOrDot}
+          <span class="text-xs font-semibold text-neutral-200 tracking-tight font-sans">${text}</span>
+        </div>
+        <span class="text-neutral-500 font-mono text-[10px] hidden sm:inline">•</span>
+        <span class="text-[10px] text-neutral-400 font-mono tracking-tight hidden sm:inline" title="Última sincronización: ${timeFormatted}">
+          ${timeFormatted !== 'Nunca' ? `${timeFormatted}` : 'Iniciando...'}
+        </span>
       `;
     });
   }
