@@ -990,23 +990,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingApiUrl = document.getElementById('setting-api-url');
   const settingApiKey = document.getElementById('setting-api-key');
   const settingUserId = document.getElementById('setting-user-id');
+  const settingSupabaseUrl = document.getElementById('setting-supabase-url');
+  const settingSupabaseKey = document.getElementById('setting-supabase-key');
   const settingTheme = document.getElementById('setting-theme');
 
-  if (settingApiUrl) settingApiUrl.value = store.state.config.apiUrl;
-  if (settingApiKey) settingApiKey.value = store.state.config.apiKey;
-  if (settingUserId) settingUserId.value = store.state.config.userId;
-  if (settingTheme) settingTheme.value = store.state.config.theme;
+  if (settingApiUrl) settingApiUrl.value = store.state.config.apiUrl || '';
+  if (settingApiKey) settingApiKey.value = store.state.config.apiKey || '';
+  if (settingUserId) settingUserId.value = store.state.config.userId || 'studio_user_default';
+  if (settingSupabaseUrl) settingSupabaseUrl.value = store.state.config.supabaseUrl || localStorage.getItem('studio_supabase_url') || '';
+  if (settingSupabaseKey) settingSupabaseKey.value = store.state.config.supabaseKey || localStorage.getItem('studio_supabase_key') || '';
+  if (settingTheme) settingTheme.value = store.state.config.theme || 'dark';
 
   document.getElementById('form-settings')?.addEventListener('submit', (e) => {
     e.preventDefault();
     store.state.config.apiUrl = settingApiUrl.value.trim();
     store.state.config.apiKey = settingApiKey.value.trim();
     store.state.config.userId = settingUserId.value.trim();
+    if (settingSupabaseUrl) {
+      store.state.config.supabaseUrl = settingSupabaseUrl.value.trim();
+      localStorage.setItem('studio_supabase_url', settingSupabaseUrl.value.trim());
+    }
+    if (settingSupabaseKey) {
+      store.state.config.supabaseKey = settingSupabaseKey.value.trim();
+      localStorage.setItem('studio_supabase_key', settingSupabaseKey.value.trim());
+    }
     store.state.config.theme = settingTheme.value;
     document.documentElement.setAttribute('data-theme', settingTheme.value);
     store.save();
     modals.settings.classList.add('hidden');
-    store.addLog('info', 'Configuración de API actualizada');
+    store.addLog('info', 'Configuración actualizada y sincronizada');
+    if (window.cloudSyncService) {
+      window.cloudSyncService.pushState(store.state);
+    }
   });
 
   // --- Command Manager Render & Logic ---
