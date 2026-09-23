@@ -224,6 +224,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeChat = store.getActiveChat();
     chatMessagesEl.innerHTML = '';
 
+    // Update active chat subbar
+    const titleEl = document.getElementById('active-chat-title');
+    const badgeEl = document.getElementById('active-chat-project-badge');
+    const pinBtn = document.getElementById('btn-pin-active-chat');
+
+    if (activeChat) {
+      if (titleEl) titleEl.textContent = activeChat.title || 'Conversación';
+      if (badgeEl) {
+        const proj = store.state.projects.find(p => p.id === activeChat.projectId);
+        badgeEl.textContent = proj ? proj.name : 'General';
+      }
+      if (pinBtn) {
+        pinBtn.innerHTML = `<i data-lucide="pin" class="w-3.5 h-3.5 ${activeChat.pinned ? 'text-amber-400' : ''}"></i>`;
+      }
+    } else {
+      if (titleEl) titleEl.textContent = 'Nueva Conversación';
+      if (badgeEl) badgeEl.textContent = 'General';
+    }
+
     if (!activeChat || activeChat.messages.length === 0) {
       chatMessagesEl.innerHTML = `
         <div class="h-full flex flex-col items-center justify-center text-center p-8 max-w-lg mx-auto">
@@ -731,8 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatRow = e.target.closest('.chat-item-row');
     if (chatRow && !e.target.closest('.btn-pin-chat') && !e.target.closest('.btn-del-chat')) {
       const chatId = chatRow.dataset.chatId;
-      store.state.activeChatId = chatId;
-      store.save();
+      store.selectChat(chatId);
       renderSidebar();
       renderMessages();
       if (window.innerWidth < 768) {
@@ -926,7 +944,27 @@ document.addEventListener('DOMContentLoaded', () => {
   sidebarBackdropEl?.addEventListener('click', closeMobileSidebar);
 
   document.getElementById('btn-new-chat')?.addEventListener('click', () => {
-    store.addChat({ title: 'Nueva Conversación' });
+    const activeProject = store.state.activeProjectId || (store.state.projects[0]?.id || null);
+    store.addChat({ title: 'Nueva Conversación', projectId: activeProject });
+    renderSidebar();
+    renderMessages();
+  });
+
+  document.getElementById('btn-rename-active-chat')?.addEventListener('click', () => {
+    const chat = store.getActiveChat();
+    if (!chat) return;
+    const newTitle = prompt('Renombrar conversación:', chat.title);
+    if (newTitle && newTitle.trim()) {
+      store.updateChat(chat.id, { title: newTitle.trim() });
+      renderSidebar();
+      renderMessages();
+    }
+  });
+
+  document.getElementById('btn-pin-active-chat')?.addEventListener('click', () => {
+    const chat = store.getActiveChat();
+    if (!chat) return;
+    store.updateChat(chat.id, { pinned: !chat.pinned });
     renderSidebar();
     renderMessages();
   });
@@ -1449,8 +1487,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const searchItem = e.target.closest('.search-result-item');
       if (searchItem) {
         const chatId = searchItem.dataset.chatId;
-        store.state.activeChatId = chatId;
-        store.save();
+        store.selectChat(chatId);
         modals.search.classList.add('hidden');
         renderSidebar();
         renderMessages();

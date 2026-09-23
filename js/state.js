@@ -137,6 +137,14 @@ class Store {
           stateObj.activeChatId = stateObj.chats[0]?.id || null;
         }
 
+        // Validate activeChatId exists
+        if (stateObj.chats && stateObj.chats.length > 0) {
+          const chatExists = stateObj.chats.some(c => c.id === stateObj.activeChatId);
+          if (!chatExists) {
+            stateObj.activeChatId = stateObj.chats[0].id;
+          }
+        }
+
         return stateObj;
       }
     } catch (e) {
@@ -176,10 +184,12 @@ class Store {
       }
     };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', doSync);
-    } else {
-      doSync();
+    if (typeof document !== 'undefined') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', doSync);
+      } else {
+        doSync();
+      }
     }
   }
 
@@ -255,6 +265,31 @@ class Store {
     this.listeners.forEach(fn => fn(this.state));
   }
 
+  // --- Active Chat Helper ---
+  getActiveChat() {
+    if (!this.state.chats || this.state.chats.length === 0) return null;
+    let found = this.state.chats.find(c => c.id === this.state.activeChatId);
+    if (!found) {
+      // Fallback to first available chat
+      found = this.state.chats[0];
+      this.state.activeChatId = found.id;
+    }
+    return found;
+  }
+
+  selectChat(chatId) {
+    const chat = this.state.chats.find(c => c.id === chatId);
+    if (chat) {
+      this.state.activeChatId = chat.id;
+      if (chat.projectId) {
+        this.state.activeProjectId = chat.projectId;
+      }
+      this.save();
+      return chat;
+    }
+    return null;
+  }
+
   // --- Projects ---
   addProject(name, icon = 'folder') {
     const project = {
@@ -284,7 +319,7 @@ class Store {
     this.state.chats = this.state.chats.filter(x => x.projectId !== id);
     if (this.state.activeProjectId === id) {
       this.state.activeProjectId = this.state.projects[0]?.id || null;
-      this.state.activeChatId = this.state.chats.find(c => c.projectId === this.state.activeProjectId)?.id || null;
+      this.state.activeChatId = this.state.chats.find(c => c.projectId === this.state.activeProjectId)?.id || this.state.chats[0]?.id || null;
     }
     this.save();
   }
@@ -318,12 +353,26 @@ class Store {
     this.save();
   }
 
-  // --- Chats ---
-  addChat(projectId = null, folderId = null, title = 'Nueva Conversación') {
+  // --- Chats (Polymorphic: supports either addChat({title, projectId, folderId}) or addChat(projectId, folderId, title)) ---
+  addChat(arg1 = null, arg2 = null, arg3 = null) {
+    let projectId = null;
+    let folderId = null;
+    let title = 'Nueva Conversación';
+
+    if (arg1 && typeof arg1 === 'object' && !Array.isArray(arg1)) {
+      projectId = arg1.projectId || this.state.activeProjectId;
+      folderId = arg1.folderId || null;
+      title = arg1.title || 'Nueva Conversación';
+    } else {
+      projectId = arg1 || this.state.activeProjectId;
+      folderId = arg2 || null;
+      title = arg3 || 'Nueva Conversación';
+    }
+
     const chat = {
-      id: 'chat_' + Date.now(),
-      title,
-      projectId: projectId || this.state.activeProjectId,
+      id: 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      title: title || 'Nueva Conversación',
+      projectId: projectId || this.state.activeProjectId || (this.state.projects[0]?.id || null),
       folderId: folderId || null,
       pinned: false,
       archived: false,
@@ -333,8 +382,16 @@ class Store {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+
+    if (!Array.isArray(this.state.chats)) {
+      this.state.chats = [];
+    }
+
     this.state.chats.unshift(chat);
     this.state.activeChatId = chat.id;
+    if (chat.projectId) {
+      this.state.activeProjectId = chat.projectId;
+    }
     this.save();
     return chat;
   }
@@ -352,7 +409,7 @@ class Store {
     this.state.chats = this.state.chats.filter(x => x.id !== id);
     if (this.state.activeChatId === id) {
       const remaining = this.state.chats.filter(c => c.projectId === this.state.activeProjectId);
-      this.state.activeChatId = remaining[0]?.id || null;
+      this.state.activeChatId = remaining[0]?.id || this.state.chats[0]?.id || null;
     }
     this.save();
   }
@@ -372,6 +429,9 @@ class Store {
       steps,
       timestamp: new Date().toISOString()
     };
+    if (!Array.isArray(chat.messages)) {
+      chat.messages = [];
+    }
     chat.messages.push(msg);
     chat.updatedAt = new Date().toISOString();
     
@@ -384,7 +444,7 @@ class Store {
 
   updateMessage(chatId, msgId, updates) {
     const chat = this.state.chats.find(x => x.id === chatId);
-    if (chat) {
+    if (chat && Array.isArray(chat.messages)) {
       const msg = chat.messages.find(m => m.id === msgId);
       if (msg) {
         Object.assign(msg, updates);
