@@ -10,6 +10,7 @@ class CloudSyncService {
     this.lastPushTime = 0;
     this.lastSyncDate = null;
     this.currentStatus = 'Sincronizado'; // 'Sincronizado' | 'Sincronizando' | 'Offline'
+    this.isAgentActive = false;
     
     // Load last sync date from localStorage if available
     try {
@@ -340,9 +341,20 @@ class CloudSyncService {
     return null;
   }
 
+  pauseSync() {
+    this.isAgentActive = true;
+  }
+
+  resumeSync() {
+    this.isAgentActive = false;
+  }
+
   startPolling(getUserId, onRemoteUpdate) {
     if (this.syncTimer) clearInterval(this.syncTimer);
     this.syncTimer = setInterval(async () => {
+      // Si el agente está generando respuesta o ejecutando acciones, pausar sincronización
+      if (this.isAgentActive) return;
+
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         this.updateSyncBadge('Offline');
         return;

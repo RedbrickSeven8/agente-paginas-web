@@ -182,6 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderLiveAgentActivity(steps, isStreaming = false) {
     if (!steps || steps.length === 0) return '';
 
+    // Mostrar siempre la acción más reciente arriba y hacia abajo las anteriores
+    const reversedSteps = [...steps].reverse();
+
     return `
       <div class="w-full mb-3 rounded-2xl bg-gradient-to-b from-neutral-900/90 to-black/90 border border-white/10 p-3.5 shadow-xl transition-all">
         <div class="flex items-center justify-between border-b border-white/5 pb-2 mb-2.5">
@@ -190,31 +193,63 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="text-xs font-semibold text-neutral-200">Acciones del Agente en Vivo</span>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-500/10 text-blue-300 border border-blue-500/20">${steps.length} ${steps.length === 1 ? 'paso' : 'pasos'}</span>
           </div>
-          <span class="text-[10px] font-mono text-neutral-500">${isStreaming ? 'Ejecutando...' : 'Completado'}</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-[10px] text-neutral-400 hidden sm:inline">Haz clic en cada acción para expandir</span>
+            <span class="text-[10px] font-mono text-neutral-500 font-medium">${isStreaming ? 'Ejecutando...' : 'Completado'}</span>
+          </div>
         </div>
 
-        <div class="space-y-2 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
-          ${steps.map((s, idx) => {
-            const isLast = idx === steps.length - 1 && isStreaming;
+        <div class="space-y-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+          ${reversedSteps.map((s, revIdx) => {
+            // El primer elemento del arreglo invertido (revIdx === 0) es la última acción
+            const isLatest = revIdx === 0 && isStreaming;
             let iconColor = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
             if (s.type === 'shell') iconColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
             if (s.type === 'image') iconColor = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
             if (s.type === 'network') iconColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
 
+            const hasLog = Boolean(s.detail || s.input || s.thought || s.tool);
+            const fullLog = (s.input && s.input !== s.detail) 
+              ? (s.detail ? `${s.detail}\n\nInput / Parámetros:\n${typeof s.input === 'object' ? JSON.stringify(s.input, null, 2) : s.input}` : (typeof s.input === 'object' ? JSON.stringify(s.input, null, 2) : s.input))
+              : (s.detail || s.thought || (s.tool ? `Ejecución de herramienta: ${s.tool}` : ''));
+
             return `
-              <div class="flex items-start space-x-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs ${isLast ? 'border-blue-500/30 bg-blue-500/[0.05]' : ''}">
-                <div class="w-6 h-6 rounded-lg border ${iconColor} flex items-center justify-center shrink-0 mt-0.5">
-                  <i data-lucide="${s.icon || 'terminal'}" class="w-3.5 h-3.5"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between">
-                    <span class="font-medium text-neutral-200 text-xs truncate">${escapeHtml(s.title)}</span>
-                    <span class="text-[10px] font-mono text-neutral-500 shrink-0 ml-2">${s.timestamp || ''}</span>
+              <div class="agent-step-card rounded-xl bg-white/[0.03] border border-white/5 text-xs transition-all hover:bg-white/[0.06] hover:border-white/10 cursor-pointer overflow-hidden ${isLatest ? 'border-blue-500/40 bg-blue-500/[0.07] ring-1 ring-blue-500/20' : ''}" data-step-id="${revIdx}">
+                <div class="flex items-start space-x-2.5 p-2.5">
+                  <div class="w-6 h-6 rounded-lg border ${iconColor} flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                    <i data-lucide="${s.icon || 'terminal'}" class="w-3.5 h-3.5"></i>
                   </div>
-                  ${s.detail ? `
-                    <p class="text-[11px] text-neutral-400 mt-0.5 font-mono truncate bg-black/40 px-2 py-0.5 rounded border border-white/5">${escapeHtml(s.detail)}</p>
-                  ` : ''}
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center space-x-1.5 min-w-0">
+                        <span class="font-medium text-neutral-200 text-xs truncate">${escapeHtml(s.title)}</span>
+                        ${isLatest ? '<span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-500/20 text-blue-300 animate-pulse">Última</span>' : ''}
+                      </div>
+                      <div class="flex items-center space-x-1.5 shrink-0 ml-2">
+                        <span class="text-[10px] font-mono text-neutral-500">${s.timestamp || ''}</span>
+                        ${hasLog ? '<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-neutral-400 step-chevron transition-transform duration-200"></i>' : ''}
+                      </div>
+                    </div>
+                    ${s.detail ? `
+                      <p class="text-[11px] text-neutral-400 mt-1 font-mono truncate bg-black/40 px-2 py-0.5 rounded border border-white/5">${escapeHtml(s.detail)}</p>
+                    ` : ''}
+                  </div>
                 </div>
+                ${hasLog ? `
+                  <div class="step-full-log hidden border-t border-white/5 bg-black/60 p-3 text-[11px] font-mono text-neutral-300 select-text overflow-x-auto space-y-2">
+                    <div class="flex items-center justify-between text-[10px] text-neutral-400 border-b border-white/5 pb-1">
+                      <span>Log Completo de la Acción</span>
+                      ${s.tool ? `<span class="text-blue-400">Tool: ${escapeHtml(s.tool)}</span>` : ''}
+                    </div>
+                    <pre class="whitespace-pre-wrap break-all leading-relaxed text-neutral-300 font-mono text-[11px]">${escapeHtml(fullLog)}</pre>
+                    ${s.thought && s.thought !== s.detail ? `
+                      <div class="mt-2 pt-2 border-t border-white/5">
+                        <span class="text-[10px] text-purple-400 font-semibold block mb-1">Pensamiento del Agente:</span>
+                        <div class="text-neutral-400 whitespace-pre-wrap">${escapeHtml(s.thought)}</div>
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : ''}
               </div>
             `;
           }).join('')}
@@ -742,7 +777,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Buttons & Action Delegations ---
   sendBtn.addEventListener('click', handleSendMessage);
-  stopBtn.addEventListener('click', () => dify.stop());
+  stopBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dify.stop();
+    sendBtn.classList.remove('hidden');
+    stopBtn.classList.add('hidden');
+    updateDynamicIsland('En reposo', 'Listo', false);
+    if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
+      window.cloudSyncService.resumeSync();
+    }
+  });
 
   document.getElementById('btn-attach')?.addEventListener('click', () => {
     fileInput.click();
@@ -774,6 +819,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Delegated Clicks
   document.addEventListener('click', (e) => {
+    // Expansión interactiva de logs de acciones en vivo
+    const stepCard = e.target.closest('.agent-step-card');
+    if (stepCard && !e.target.closest('button') && !e.target.closest('a')) {
+      const fullLog = stepCard.querySelector('.step-full-log');
+      const chevron = stepCard.querySelector('.step-chevron');
+      if (fullLog) {
+        const isCurrentlyHidden = fullLog.classList.contains('hidden');
+        if (isCurrentlyHidden) {
+          fullLog.classList.remove('hidden');
+          if (chevron) chevron.classList.add('rotate-180');
+        } else {
+          fullLog.classList.add('hidden');
+          if (chevron) chevron.classList.remove('rotate-180');
+        }
+      }
+      return;
+    }
+
     const chatLink = e.target.closest('#chat-messages a');
     if (chatLink) {
       e.preventDefault();

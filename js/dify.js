@@ -123,6 +123,11 @@ class DifyService {
     this.abortController = new AbortController();
     window.appStore.addLog('api', `Enviando mensaje a Dify API (Conv ID: ${conversationId || 'Nueva'})`);
 
+    // Pausar sincronización periódica mientras el agente está actuando para evitar interrupciones
+    if (window.cloudSyncService && typeof window.cloudSyncService.pauseSync === 'function') {
+      window.cloudSyncService.pauseSync();
+    }
+
     try {
       const response = await fetch(`${config.apiUrl}/chat-messages`, {
         method: 'POST',
@@ -232,13 +237,26 @@ class DifyService {
       }
     } finally {
       this.abortController = null;
+      // Reanudar sincronización periódica una vez finalizada la respuesta
+      if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
+        window.cloudSyncService.resumeSync();
+      }
     }
   }
 
   stop() {
     if (this.abortController) {
-      this.abortController.abort();
+      try {
+        this.abortController.abort();
+      } catch (e) {
+        console.warn('Error aborting request:', e);
+      }
       this.abortController = null;
+      window.appStore.addLog('warn', 'Generación cancelada manualmente.');
+    }
+    // Reanudar sincronización al detener manualmente
+    if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
+      window.cloudSyncService.resumeSync();
     }
   }
 }
