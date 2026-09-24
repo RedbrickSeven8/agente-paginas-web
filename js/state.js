@@ -226,7 +226,7 @@ class Store {
     }
 
     // 4. Replace Commands
-    if (Array.isArray(remote.customCommands) && remote.customCommands.length > 0) {
+    if (Array.isArray(remote.customCommands)) {
       if (JSON.stringify(this.state.customCommands) !== JSON.stringify(remote.customCommands)) {
         this.state.customCommands = remote.customCommands;
         hasChanges = true;
@@ -234,7 +234,7 @@ class Store {
     }
 
     // 5. Replace Prompts
-    if (Array.isArray(remote.promptTemplates) && remote.promptTemplates.length > 0) {
+    if (Array.isArray(remote.promptTemplates)) {
       if (JSON.stringify(this.state.promptTemplates) !== JSON.stringify(remote.promptTemplates)) {
         this.state.promptTemplates = remote.promptTemplates;
         hasChanges = true;
@@ -450,6 +450,70 @@ class Store {
         this.save();
       }
     }
+  }
+
+
+  // --- Commands CRUD ---
+  addCommand(name, desc) {
+    const newCmd = {
+      id: 'cmd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      name: name.startsWith('/') ? name : '/' + name,
+      desc
+    };
+    if (!Array.isArray(this.state.customCommands)) {
+      this.state.customCommands = [];
+    }
+    this.state.customCommands.push(newCmd);
+    this.save();
+    return newCmd;
+  }
+
+  updateCommand(id, updates) {
+    if (!Array.isArray(this.state.customCommands)) return;
+    const cmd = this.state.customCommands.find(c => c.id === id);
+    if (cmd) {
+      if (updates.name) {
+        updates.name = updates.name.startsWith('/') ? updates.name : '/' + updates.name;
+      }
+      Object.assign(cmd, updates);
+      this.save();
+    }
+  }
+
+  deleteCommand(id) {
+    if (!Array.isArray(this.state.customCommands)) return;
+    this.state.customCommands = this.state.customCommands.filter(c => c.id !== id);
+    this.save();
+  }
+
+  // --- Prompts CRUD ---
+  addPrompt(title, text) {
+    const newPrompt = {
+      id: 'prompt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      title,
+      text
+    };
+    if (!Array.isArray(this.state.promptTemplates)) {
+      this.state.promptTemplates = [];
+    }
+    this.state.promptTemplates.push(newPrompt);
+    this.save();
+    return newPrompt;
+  }
+
+  updatePrompt(id, updates) {
+    if (!Array.isArray(this.state.promptTemplates)) return;
+    const prompt = this.state.promptTemplates.find(p => p.id === id);
+    if (prompt) {
+      Object.assign(prompt, updates);
+      this.save();
+    }
+  }
+
+  deletePrompt(id) {
+    if (!Array.isArray(this.state.promptTemplates)) return;
+    this.state.promptTemplates = this.state.promptTemplates.filter(p => p.id !== id);
+    this.save();
   }
 
   addLog(type, message, details = null) {

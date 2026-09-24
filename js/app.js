@@ -155,15 +155,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const isActive = chat.id === store.state.activeChatId;
     return `
       <div class="chat-item-row group flex items-center justify-between text-xs py-1.5 px-2 rounded-lg cursor-pointer transition-all ${isActive ? 'bg-blue-600/20 text-blue-300 font-medium border border-blue-500/30' : 'text-neutral-400 hover:bg-white/5 hover:text-neutral-200'}" data-chat-id="${chat.id}">
-        <div class="flex items-center space-x-2 truncate">
+        <div class="flex items-center space-x-2 truncate flex-1 mr-1">
           <i data-lucide="${chat.pinned ? 'pin' : 'message-square'}" class="w-3.5 h-3.5 ${chat.pinned ? 'text-amber-400' : 'text-neutral-500'} shrink-0"></i>
           <span class="truncate">${escapeHtml(chat.title || 'Conversación')}</span>
         </div>
         <div class="flex items-center space-x-1 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
-          <button class="btn-pin-chat p-1 hover:text-amber-400" data-chat-id="${chat.id}" title="${chat.pinned ? 'Desanclar' : 'Anclar'}">
+          <button class="btn-rename-chat p-1 hover:text-blue-300 text-neutral-400 rounded hover:bg-white/10" data-chat-id="${chat.id}" title="Renombrar Chat">
+            <i data-lucide="edit-2" class="w-3 h-3"></i>
+          </button>
+          <button class="btn-pin-chat p-1 hover:text-amber-400 text-neutral-400 rounded hover:bg-white/10" data-chat-id="${chat.id}" title="${chat.pinned ? 'Desanclar' : 'Anclar'}">
             <i data-lucide="pin" class="w-3 h-3"></i>
           </button>
-          <button class="btn-del-chat p-1 hover:text-red-400" data-chat-id="${chat.id}" title="Eliminar">
+          <button class="btn-del-chat p-1 hover:text-red-400 text-neutral-400 rounded hover:bg-white/10" data-chat-id="${chat.id}" title="Eliminar Chat">
             <i data-lucide="trash-2" class="w-3 h-3"></i>
           </button>
         </div>
@@ -373,8 +376,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) lucide.createIcons();
   }
 
-  function scrollToBottom() {
-    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  let userScrolledUp = false;
+
+  if (chatMessagesEl) {
+    chatMessagesEl.addEventListener('scroll', () => {
+      // If user is within 60px of the bottom, keep auto-scrolling active.
+      // Otherwise, mark userScrolledUp = true so user position is preserved.
+      const distanceFromBottom = chatMessagesEl.scrollHeight - chatMessagesEl.scrollTop - chatMessagesEl.clientHeight;
+      if (distanceFromBottom > 60) {
+        userScrolledUp = true;
+      } else {
+        userScrolledUp = false;
+      }
+    });
+  }
+
+  function scrollToBottom(force = false) {
+    if (!chatMessagesEl) return;
+    if (force || !userScrolledUp) {
+      chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+    }
   }
 
   function updateDynamicIsland(text, badge = 'Listo', isBusy = false) {
@@ -440,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chatInputEl.value = '';
     chatInputEl.style.height = 'auto';
     slashMenu.classList.add('hidden');
+    userScrolledUp = false;
 
     store.addMessage(activeChat.id, {
       role: 'user',
@@ -527,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mdBody) {
       mdBody.innerHTML = formatTextWithLinks(content || '');
     }
-    scrollToBottom();
+    scrollToBottom(false);
   }
 
   // --- Attachments & File Handling (Files, Images & Documents with Paste Support) ---
@@ -799,9 +821,25 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const renameChatBtn = e.target.closest('.btn-rename-chat');
+    if (renameChatBtn) {
+      const chatId = renameChatBtn.dataset.chatId;
+      const c = store.state.chats.find(x => x.id === chatId);
+      if (c) {
+        const newTitle = prompt('Renombrar conversación:', c.title);
+        if (newTitle && newTitle.trim()) {
+          store.updateChat(chatId, { title: newTitle.trim() });
+          renderSidebar();
+          renderMessages();
+        }
+      }
+      return;
+    }
+
     const chatRow = e.target.closest('.chat-item-row');
-    if (chatRow && !e.target.closest('.btn-pin-chat') && !e.target.closest('.btn-del-chat')) {
+    if (chatRow && !e.target.closest('.btn-pin-chat') && !e.target.closest('.btn-del-chat') && !e.target.closest('.btn-rename-chat')) {
       const chatId = chatRow.dataset.chatId;
+      userScrolledUp = false;
       store.selectChat(chatId);
       renderSidebar();
       renderMessages();
@@ -828,6 +866,74 @@ document.addEventListener('DOMContentLoaded', () => {
         store.deleteChat(chatId);
         renderSidebar();
         renderMessages();
+      }
+      return;
+    }
+
+    const delCmdBtn = e.target.closest('.btn-del-custom-cmd');
+    if (delCmdBtn) {
+      const id = delCmdBtn.dataset.id;
+      if (confirm('¿Eliminar este comando de atajo?')) {
+        store.deleteCommand(id);
+        renderCommandManager();
+        renderQuickShortcutsBar();
+      }
+      return;
+    }
+
+    const editCmdBtn = e.target.closest('.btn-edit-custom-cmd');
+    if (editCmdBtn) {
+      const id = editCmdBtn.dataset.id;
+      const cmd = store.state.customCommands.find(c => c.id === id);
+      if (cmd) {
+        const inputCmdId = document.getElementById('edit-cmd-id');
+        const inputCmdName = document.getElementById('new-cmd-name');
+        const inputCmdDesc = document.getElementById('new-cmd-desc');
+        const btnSubmitCmd = document.getElementById('btn-submit-cmd');
+        const btnCancelEditCmd = document.getElementById('btn-cancel-edit-cmd');
+        if (inputCmdId) inputCmdId.value = cmd.id;
+        if (inputCmdName) inputCmdName.value = cmd.name;
+        if (inputCmdDesc) inputCmdDesc.value = cmd.desc;
+        if (btnSubmitCmd) btnSubmitCmd.textContent = 'Guardar Cambios';
+        btnCancelEditCmd?.classList.remove('hidden');
+        inputCmdName?.focus();
+      }
+      return;
+    }
+
+    const usePromptBtn = e.target.closest('.btn-use-prompt');
+    if (usePromptBtn) {
+      insertTextAtCursor(usePromptBtn.dataset.text);
+      modals.prompts?.classList.add('hidden');
+      return;
+    }
+
+    const delPromptBtn = e.target.closest('.btn-del-prompt');
+    if (delPromptBtn) {
+      const id = delPromptBtn.dataset.id;
+      if (confirm('¿Eliminar esta plantilla de prompt?')) {
+        store.deletePrompt(id);
+        renderPromptsList();
+      }
+      return;
+    }
+
+    const editPromptBtn = e.target.closest('.btn-edit-prompt');
+    if (editPromptBtn) {
+      const id = editPromptBtn.dataset.id;
+      const promptObj = store.state.promptTemplates.find(p => p.id === id);
+      if (promptObj) {
+        const inputPromptId = document.getElementById('edit-prompt-id');
+        const inputPromptTitle = document.getElementById('prompt-input-title');
+        const inputPromptText = document.getElementById('prompt-input-text');
+        const btnSubmitPrompt = document.getElementById('btn-submit-prompt');
+        const btnCancelEditPrompt = document.getElementById('btn-cancel-edit-prompt');
+        if (inputPromptId) inputPromptId.value = promptObj.id;
+        if (inputPromptTitle) inputPromptTitle.value = promptObj.title;
+        if (inputPromptText) inputPromptText.value = promptObj.text;
+        if (btnSubmitPrompt) btnSubmitPrompt.textContent = 'Actualizar Plantilla';
+        btnCancelEditPrompt?.classList.remove('hidden');
+        inputPromptTitle?.focus();
       }
       return;
     }
