@@ -515,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
       thought: '',
       toolCalls: [],
       steps: []
-    });
+    }, true);
 
     let fullAnswer = '';
     let fullThought = '';
@@ -527,21 +527,24 @@ document.addEventListener('DOMContentLoaded', () => {
       chatId: activeChat.id,
       onChunk: (accumulated, chunk) => {
         fullAnswer = accumulated;
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer, steps: stepsList });
+        // Don't push to cloud during streaming chunks to keep agent completely uninterrupted
+        store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer, steps: stepsList }, true);
         updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
       },
       onThought: (accumulatedThought, action, stepsHistory) => {
         fullThought = accumulatedThought;
         stepsList = stepsHistory;
         updateDynamicIsland(action.title, 'En progreso', true);
-        store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, steps: stepsList });
+        // Don't push to cloud during streaming thoughts to keep agent completely uninterrupted
+        store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, steps: stepsList }, true);
         updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
       },
       onComplete: (content, thought, steps) => {
         sendBtn.classList.remove('hidden');
         stopBtn.classList.add('hidden');
         updateDynamicIsland('En reposo', 'Listo', false);
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, steps: steps || stepsList });
+        // Save and sync to cloud once generation is completely finished
+        store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, steps: steps || stepsList }, false);
         renderMessages();
         renderSidebar();
         updateTokenCounter();
@@ -561,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDynamicIsland('Error en respuesta', 'Alerta', false);
         store.updateMessage(activeChat.id, assistantMsg.id, {
           content: `⚠️ Hubo un error al procesar tu solicitud: ${err.message}`
-        });
+        }, false);
         renderMessages();
       }
     });

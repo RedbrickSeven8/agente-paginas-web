@@ -168,17 +168,12 @@ class Store {
   }
 
   initSync() {
-    // Immediate pull on load
+    // Initial fetch of workspace on startup
     const doSync = async () => {
       if (window.cloudSyncService) {
         await window.cloudSyncService.pullState(this.state.config.userId, (remoteData) => {
           this.mergeRemoteData(remoteData);
         });
-
-        window.cloudSyncService.startPolling(
-          () => this.state.config.userId,
-          (remoteData) => this.mergeRemoteData(remoteData)
-        );
       }
     };
 
@@ -413,7 +408,7 @@ class Store {
   }
 
   // --- Messages ---
-  addMessage(chatId, { role, content, files = [], thought = '', toolCalls = [], steps = [] }) {
+  addMessage(chatId, { role, content, files = [], thought = '', toolCalls = [], steps = [] }, skipCloudPush = false) {
     const chat = this.state.chats.find(x => x.id === chatId);
     if (!chat) return null;
     const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
@@ -436,18 +431,18 @@ class Store {
     const estimatedTokens = Math.ceil((content || '').length / 4);
     this.state.tokenUsage.total += estimatedTokens;
 
-    this.save();
+    this.save(skipCloudPush);
     return msg;
   }
 
-  updateMessage(chatId, msgId, updates) {
+  updateMessage(chatId, msgId, updates, skipCloudPush = false) {
     const chat = this.state.chats.find(x => x.id === chatId);
     if (chat && Array.isArray(chat.messages)) {
       const msg = chat.messages.find(m => m.id === msgId);
       if (msg) {
         Object.assign(msg, updates);
         chat.updatedAt = new Date().toISOString();
-        this.save();
+        this.save(skipCloudPush);
       }
     }
   }

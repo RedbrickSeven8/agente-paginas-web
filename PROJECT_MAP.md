@@ -24,7 +24,7 @@ graph TD
 
     subgraph Core_Engine [Motor de Lógica Frontend & Persistencia]
         Store[Local Storage & State Engine Reactivo - state.js: CRUD Chats, Commands, Prompts]
-        CloudSync[Cloud Sync Engine con Pausa Inteligente durante Actividad - sync.js]
+        CloudSync[Cloud Sync Engine Event-Driven: Sincronización por cambio y al finalizar agente - sync.js]
         DifyClient[Dify SSE Client & Action Humanizer con Manejo de AbortController y Background Execution - dify.js]
         SlashHandler[Slash / Autocomplete & In-Place Cursor Inserter]
         FileEngine[Client Compressor, Paste & Multi-upload Manager]

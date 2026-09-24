@@ -1,16 +1,13 @@
 // Cloud Sync & Supabase Multi-Device Universal Engine
-// Realtime sync across all browsers and devices using Supabase Storage API & PostgreSQL REST
+// Sync on user change & when agent finishes generating (no background interval polling)
 class CloudSyncService {
   constructor() {
     this.isSyncing = false;
-    this.syncTimer = null;
-    this.pollInterval = 4000;
     this.lastKnownRemoteHash = null;
     this.lastPushedHash = null;
     this.lastPushTime = 0;
     this.lastSyncDate = null;
     this.currentStatus = 'Sincronizado'; // 'Sincronizado' | 'Sincronizando' | 'Offline'
-    this.isAgentActive = false;
     
     // Load last sync date from localStorage if available
     try {
@@ -341,42 +338,10 @@ class CloudSyncService {
     return null;
   }
 
-  pauseSync() {
-    this.isAgentActive = true;
-  }
-
-  resumeSync() {
-    this.isAgentActive = false;
-  }
-
-  startPolling(getUserId, onRemoteUpdate) {
-    if (this.syncTimer) clearInterval(this.syncTimer);
-    this.syncTimer = setInterval(async () => {
-      // Si el agente está generando respuesta o ejecutando acciones, pausar sincronización
-      if (this.isAgentActive) return;
-
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        this.updateSyncBadge('Offline');
-        return;
-      }
-
-      // Don't pull immediately right after a local push to prevent race conditions
-      if (Date.now() - this.lastPushTime < 1500) return;
-      
-      const userId = getUserId() || 'Dani';
-      if (!this.isSyncing) {
-        this.isSyncing = true;
-        await this.pullState(userId, onRemoteUpdate);
-        this.isSyncing = false;
-      }
-    }, this.pollInterval);
-  }
-
   updateSyncBadge(status) {
     // Normalize status into one of: 'Sincronizado', 'Sincronizando', 'Offline'
     let text = 'Sincronizado';
     let dotColor = 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
-    let pulseAnim = '';
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       status = 'Offline';
@@ -385,15 +350,12 @@ class CloudSyncService {
     if (status === 'Sincronizando' || status.includes('Sincronizando') || status.includes('Cargando')) {
       text = 'Sincronizando';
       dotColor = 'bg-amber-400';
-      pulseAnim = 'animate-spin';
     } else if (status === 'Offline' || status.includes('Offline') || status.includes('Local') || status.includes('Desconectado')) {
       text = 'Offline';
       dotColor = 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]';
-      pulseAnim = '';
     } else {
       text = 'Sincronizado';
       dotColor = 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
-      pulseAnim = '';
     }
 
     this.currentStatus = text;
