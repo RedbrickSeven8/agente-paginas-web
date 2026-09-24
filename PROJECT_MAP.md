@@ -20,6 +20,7 @@ graph TD
         PromptModal[Modal Gestor CRUD Completo de Biblioteca de Prompts con Eliminación Funcional]
         SearchModal[Modal Búsqueda Global con Botón de Cierre & Esc]
         ExportModal[Descarga de Carpetas ZIP y Exportación de Workspace]
+        FileViewerModal[Modal Visor Universal Multimodal: Imágenes, PDF, Código, Video, Audio & Docs]
     end
 
     subgraph Core_Engine [Motor de Lógica Frontend & Persistencia]

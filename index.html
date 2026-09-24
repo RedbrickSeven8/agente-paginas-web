@@ -506,6 +506,49 @@
     </div>
   </div>
 
+  
+  <!-- Modal Visor Universal de Archivos / Adjuntos -->
+  <div id="modal-file-viewer" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4">
+    <div class="apple-glass-heavy rounded-2xl max-w-4xl w-full max-h-[92vh] shadow-2xl border border-white/10 flex flex-col overflow-hidden">
+      <!-- Header -->
+      <div class="h-14 px-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
+        <div class="flex items-center space-x-3 min-w-0">
+          <div id="viewer-icon-container" class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+            <i data-lucide="file-text" id="viewer-file-icon" class="w-4 h-4"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 id="viewer-file-name" class="text-sm font-bold text-white truncate">archivo.txt</h3>
+            <div class="flex items-center space-x-2 text-[10px] text-neutral-400 font-mono">
+              <span id="viewer-file-size">0 KB</span>
+              <span>•</span>
+              <span id="viewer-file-type" class="uppercase">DOCUMENTO</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+          <a id="viewer-download-btn" href="#" download class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-200 hover:text-white text-xs flex items-center space-x-1.5 transition-all" title="Descargar archivo">
+            <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span class="hidden sm:inline">Descargar</span>
+          </a>
+          <button class="btn-close-modal p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-white/10 transition-colors" title="Cerrar visor">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Viewer Area -->
+      <div id="viewer-content-body" class="flex-1 overflow-auto p-4 flex items-center justify-center bg-black/60 relative select-text">
+        <!-- Rendered preview content injected via JS -->
+      </div>
+
+      <!-- Footer Info Bar -->
+      <div class="h-10 px-4 border-t border-white/5 bg-neutral-950/80 flex items-center justify-between text-[11px] text-neutral-400 shrink-0 font-mono">
+        <span id="viewer-footer-info">Visor Multimodal Integrado</span>
+        <button type="button" class="btn-close-modal hover:text-white">Esc para salir</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="js/sync.js"></script>
   <script src="js/state.js"></script>

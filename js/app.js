@@ -348,11 +348,21 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="flex flex-wrap gap-2 mb-2">
           ${msg.files.map(f => {
             const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+            const fileData = encodeURIComponent(JSON.stringify({
+              id: f.id,
+              name: f.name || 'Archivo',
+              type: f.type || 'document',
+              size: f.size || 0,
+              dataUrl: f.dataUrl || null,
+              textPreview: f.textPreview || null,
+              url: f.url || null
+            }));
             return `
-              <div class="flex items-center space-x-2 bg-black/50 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm backdrop-blur-sm">
-                <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0"></i>
-                <span class="truncate max-w-[160px] font-medium">${escapeHtml(f.name || 'Archivo adjunto')}</span>
-                ${f.size ? `<span class="text-[10px] text-neutral-500 font-mono">${(f.size/1024).toFixed(0)}KB</span>` : ''}
+              <div class="btn-preview-attachment flex items-center space-x-2 bg-black/60 hover:bg-black/90 border border-white/10 hover:border-blue-500/50 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm backdrop-blur-sm cursor-pointer transition-all group" data-file-json="${fileData}" title="Clic para previsualizar ${escapeHtml(f.name || 'archivo')}">
+                <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0 group-hover:scale-110 transition-transform"></i>
+                <span class="truncate max-w-[160px] font-medium group-hover:text-white">${escapeHtml(f.name || 'Archivo adjunto')}</span>
+                ${f.size ? `<span class="text-[10px] text-neutral-400 font-mono">${(f.size/1024).toFixed(0)}KB</span>` : ''}
+                <i data-lucide="eye" class="w-3 h-3 text-neutral-500 group-hover:text-blue-400 transition-colors"></i>
               </div>
             `;
           }).join('')}
@@ -600,12 +610,20 @@ document.addEventListener('DOMContentLoaded', () => {
     attachmentDock.classList.remove('hidden');
     attachmentDock.innerHTML = pendingAttachments.map((f, idx) => {
       const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+      const fileData = encodeURIComponent(JSON.stringify({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        dataUrl: f.dataUrl || null,
+        textPreview: f.textPreview || null
+      }));
       return `
-        <div class="flex items-center space-x-2 bg-neutral-900/90 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm transition-all hover:border-blue-500/30">
-          <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0"></i>
-          <span class="truncate max-w-[130px] font-medium">${escapeHtml(f.name)}</span>
+        <div class="btn-preview-attachment flex items-center space-x-2 bg-neutral-900/90 hover:bg-neutral-800/90 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 shadow-sm transition-all hover:border-blue-500/50 cursor-pointer group" data-file-json="${fileData}" title="Clic para previsualizar ${escapeHtml(f.name)}">
+          <i data-lucide="${isImg ? 'image' : 'file-text'}" class="w-3.5 h-3.5 ${isImg ? 'text-purple-400' : 'text-blue-400'} shrink-0 group-hover:scale-110 transition-transform"></i>
+          <span class="truncate max-w-[130px] font-medium group-hover:text-white">${escapeHtml(f.name)}</span>
           <span class="text-[10px] text-neutral-500 font-mono">${(f.size / 1024).toFixed(0)}KB</span>
-          <button class="btn-remove-attachment p-1 rounded-md hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors" data-index="${idx}" title="Eliminar adjunto">
+          <button type="button" class="btn-remove-attachment p-1 rounded-md hover:bg-red-500/20 text-neutral-400 hover:text-red-400 transition-colors ml-1" data-index="${idx}" title="Eliminar adjunto">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
         </div>
@@ -620,12 +638,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const file of Array.from(files)) {
       try {
+        let dataUrl = null;
+        let textPreview = null;
+
+        // Extract instant preview data client-side for immediate high-fidelity viewing
+        if (file.type && file.type.startsWith('image/')) {
+          dataUrl = await new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = (e) => res(e.target.result);
+            reader.onerror = () => res(null);
+            reader.readAsDataURL(file);
+          });
+        } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          dataUrl = await new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = (e) => res(e.target.result);
+            reader.onerror = () => res(null);
+            reader.readAsDataURL(file);
+          });
+        } else if (file.size < 2 * 1024 * 1024) {
+          // Read text files (code, json, markdown, logs, csv, xml, html, txt)
+          textPreview = await new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = (e) => res(e.target.result);
+            reader.onerror = () => res(null);
+            reader.readAsText(file);
+          });
+        }
+
         const uploadRes = await dify.uploadFile(file);
         pendingAttachments.push({
           id: uploadRes.id,
           name: file.name || (file.type && file.type.startsWith('image') ? 'imagen_pegada.png' : 'documento_adjunto'),
           type: file.type || 'application/octet-stream',
-          size: file.size
+          size: file.size,
+          dataUrl: dataUrl,
+          textPreview: textPreview
         });
       } catch (err) {
         alert(`Error al subir ${file.name || 'archivo'}: ${err.message}`);
@@ -1134,6 +1182,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    
+    // Delegated click on attachment chip to open Universal File Viewer
+    const previewAttBtn = e.target.closest('.btn-preview-attachment');
+    if (previewAttBtn && !e.target.closest('.btn-remove-attachment')) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const rawJson = decodeURIComponent(previewAttBtn.dataset.fileJson);
+        const fileInfo = JSON.parse(rawJson);
+        openUniversalFileViewer(fileInfo);
+      } catch (err) {
+        console.error('Error opening attachment preview:', err);
+      }
+      return;
+    }
     const removeAttBtn = e.target.closest('.btn-remove-attachment');
     if (removeAttBtn) {
       const idx = parseInt(removeAttBtn.dataset.index, 10);
@@ -1258,6 +1321,135 @@ document.addEventListener('DOMContentLoaded', () => {
   // Settings managed automatically via cloud synchronization engine
 
   // --- Command Manager Render & Logic ---
+  
+  // --- Visor Universal de Archivos y Documentos ---
+  function openUniversalFileViewer(fileInfo) {
+    if (!fileInfo) return;
+
+    const modal = document.getElementById('modal-file-viewer');
+    if (!modal) return;
+
+    const nameEl = document.getElementById('viewer-file-name');
+    const sizeEl = document.getElementById('viewer-file-size');
+    const typeEl = document.getElementById('viewer-file-type');
+    const iconEl = document.getElementById('viewer-file-icon');
+    const downloadBtn = document.getElementById('viewer-download-btn');
+    const contentBody = document.getElementById('viewer-content-body');
+    const footerInfo = document.getElementById('viewer-footer-info');
+
+    const name = fileInfo.name || 'Archivo adjunto';
+    const size = fileInfo.size ? `${(fileInfo.size / 1024).toFixed(1)} KB` : 'Desconocido';
+    const type = fileInfo.type || 'application/octet-stream';
+    const lowerName = name.toLowerCase();
+
+    if (nameEl) nameEl.textContent = name;
+    if (sizeEl) sizeEl.textContent = size;
+    if (typeEl) typeEl.textContent = type.split('/')[1] || type;
+
+    // Config download button
+    if (downloadBtn) {
+      downloadBtn.download = name;
+      if (fileInfo.dataUrl) {
+        downloadBtn.href = fileInfo.dataUrl;
+      } else if (fileInfo.textPreview) {
+        const blob = new Blob([fileInfo.textPreview], { type: 'text/plain;charset=utf-8' });
+        downloadBtn.href = URL.createObjectURL(blob);
+      } else {
+        downloadBtn.href = '#';
+      }
+    }
+
+    // Determine category and render appropriate viewer
+    const isImage = type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(lowerName);
+    const isPdf = type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isAudio = type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(lowerName);
+    const isVideo = type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/i.test(lowerName);
+    const isCodeOrText = type.startsWith('text/') || /\.(txt|md|js|ts|jsx|tsx|json|html|css|scss|py|sh|sql|csv|xml|yml|yaml|env|c|cpp|rs|go|php|rb)$/i.test(lowerName);
+
+    if (iconEl) {
+      if (isImage) iconEl.setAttribute('data-lucide', 'image');
+      else if (isPdf) iconEl.setAttribute('data-lucide', 'file-text');
+      else if (isAudio) iconEl.setAttribute('data-lucide', 'music');
+      else if (isVideo) iconEl.setAttribute('data-lucide', 'video');
+      else if (isCodeOrText) iconEl.setAttribute('data-lucide', 'code');
+      else iconEl.setAttribute('data-lucide', 'file');
+    }
+
+    if (contentBody) {
+      contentBody.innerHTML = '';
+
+      if (isImage && fileInfo.dataUrl) {
+        contentBody.innerHTML = `
+          <div class="w-full h-full flex flex-col items-center justify-center p-2">
+            <img src="${fileInfo.dataUrl}" alt="${escapeHtml(name)}" class="max-w-full max-h-[70vh] rounded-xl object-contain shadow-2xl border border-white/10">
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Imagen • ${size}`;
+      } else if (isPdf && fileInfo.dataUrl) {
+        contentBody.innerHTML = `
+          <div class="w-full h-[72vh] rounded-xl overflow-hidden border border-white/10 bg-white">
+            <iframe src="${fileInfo.dataUrl}#toolbar=1" class="w-full h-full border-none"></iframe>
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Documento PDF • ${size}`;
+      } else if (isVideo && fileInfo.dataUrl) {
+        contentBody.innerHTML = `
+          <div class="w-full h-full flex items-center justify-center p-2">
+            <video src="${fileInfo.dataUrl}" controls autoplay class="max-w-full max-h-[70vh] rounded-xl shadow-2xl border border-white/10"></video>
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Video • ${size}`;
+      } else if (isAudio && fileInfo.dataUrl) {
+        contentBody.innerHTML = `
+          <div class="flex flex-col items-center justify-center p-8 space-y-4">
+            <div class="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <i data-lucide="music" class="w-8 h-8"></i>
+            </div>
+            <audio src="${fileInfo.dataUrl}" controls autoplay class="w-80 max-w-full"></audio>
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Audio • ${size}`;
+      } else if (fileInfo.textPreview !== null && fileInfo.textPreview !== undefined) {
+        contentBody.innerHTML = `
+          <div class="w-full h-full max-h-[72vh] flex flex-col rounded-xl overflow-hidden border border-white/10 bg-neutral-950">
+            <div class="h-8 bg-neutral-900/90 px-3 flex items-center justify-between text-neutral-400 text-[11px] font-mono border-b border-white/10 shrink-0">
+              <span>Vista previa de texto</span>
+              <span>${fileInfo.textPreview.length} caracteres</span>
+            </div>
+            <pre class="flex-1 p-4 overflow-auto font-mono text-xs text-neutral-200 leading-relaxed whitespace-pre-wrap select-text scrollbar-thin"><code>${escapeHtml(fileInfo.textPreview)}</code></pre>
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Documento de Texto • ${size}`;
+      } else {
+        // Fallback generic card with details & download
+        contentBody.innerHTML = `
+          <div class="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto space-y-4">
+            <div class="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 shadow-xl">
+              <i data-lucide="file" class="w-10 h-10 text-blue-400"></i>
+            </div>
+            <div>
+              <h4 class="text-base font-bold text-white mb-1 truncate">${escapeHtml(name)}</h4>
+              <p class="text-xs text-neutral-400 font-mono">${type} • ${size}</p>
+            </div>
+            <p class="text-xs text-neutral-400 leading-relaxed">
+              Este archivo ha sido cargado en el espacio de trabajo del agente y está disponible para descarga y análisis.
+            </p>
+            <div class="pt-2">
+              <a href="${fileInfo.dataUrl || '#'}" download="${escapeHtml(name)}" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/20 inline-flex items-center space-x-2 transition-all">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Descargar Archivo</span>
+              </a>
+            </div>
+          </div>
+        `;
+        if (footerInfo) footerInfo.textContent = `Archivo Binario • ${size}`;
+      }
+    }
+
+    if (window.lucide) lucide.createIcons();
+    modal.classList.remove('hidden');
+  }
+
   function renderCommandManager() {
     const listEl = document.getElementById('command-manager-list');
     if (!listEl) return;
