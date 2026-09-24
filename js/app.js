@@ -777,13 +777,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Buttons & Action Delegations ---
   sendBtn.addEventListener('click', handleSendMessage);
-  stopBtn.addEventListener('click', (e) => {
+  stopBtn.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    dify.stop();
+    
+    stopBtn.innerHTML = '<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Deteniendo...</span>';
+    if (window.lucide) lucide.createIcons();
+
+    await dify.stop();
+    
     sendBtn.classList.remove('hidden');
     stopBtn.classList.add('hidden');
+    stopBtn.innerHTML = '<i data-lucide="square" class="w-3.5 h-3.5"></i><span>Detener</span>';
     updateDynamicIsland('En reposo', 'Listo', false);
+    if (window.lucide) lucide.createIcons();
+
     if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
       window.cloudSyncService.resumeSync();
     }

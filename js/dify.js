@@ -121,6 +121,9 @@ class DifyService {
     };
 
     this.abortController = new AbortController();
+    this.currentReader = null;
+    this.currentTaskId = null;
+    this.isStopped = false;
     window.appStore.addLog('api', `Enviando mensaje a Dify API (Conv ID: ${conversationId || 'Nueva'})`);
 
     // Pausar sincronización periódica mientras el agente está actuando para evitar interrupciones
@@ -150,6 +153,7 @@ class DifyService {
       }
 
       const reader = response.body.getReader();
+      this.currentReader = reader;
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       let accumulatedContent = '';
@@ -173,6 +177,9 @@ class DifyService {
           try {
             const data = JSON.parse(jsonStr);
             const event = data.event;
+            if (data.task_id) {
+              this.currentTaskId = data.task_id;
+            }
 
             if (event === 'message' || event === 'agent_message') {
               const chunk = data.answer || '';
@@ -237,6 +244,9 @@ class DifyService {
       }
     } finally {
       this.abortController = null;
+      this.currentReader = null;
+      this.currentTaskId = null;
+      this.isStopped = false;
       // Reanudar sincronización periódica una vez finalizada la respuesta
       if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
         window.cloudSyncService.resumeSync();
@@ -244,7 +254,10 @@ class DifyService {
     }
   }
 
-  stop() {
+  async stop() {
+    this.isStopped = true;
+
+    // 1. Abort fetch controller
     if (this.abortController) {
       try {
         this.abortController.abort();
@@ -254,6 +267,31 @@ class DifyService {
       this.abortController = null;
       window.appStore.addLog('warn', 'Generación cancelada manualmente.');
     }
+
+    // 2. Cancel body stream reader
+    if (this.currentReader) {
+      try {
+        await this.currentReader.cancel();
+      } catch (e) {}
+      this.currentReader = null;
+    }
+
+    // 3. Optional backend task cancellation
+    if (this.currentTaskId) {
+      const config = this.getConfig();
+      try {
+        fetch(`${config.apiUrl}/chat-messages/${this.currentTaskId}/stop`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ user: config.userId || 'Dani' })
+        }).catch(() => {});
+      } catch (e) {}
+      this.currentTaskId = null;
+    }
+
     // Reanudar sincronización al detener manualmente
     if (window.cloudSyncService && typeof window.cloudSyncService.resumeSync === 'function') {
       window.cloudSyncService.resumeSync();
