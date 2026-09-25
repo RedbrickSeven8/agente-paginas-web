@@ -105,16 +105,25 @@ class DifyService {
   async sendMessage({ query, files = [], chatId, onChunk, onThought, onToolCall, onComplete, onError }) {
     const config = this.getConfig();
     const chat = window.appStore.state.chats.find(c => c.id === chatId);
-    const conversationId = chat ? chat.difyConversationId : '';
+    const project = chat && chat.projectId ? window.appStore.state.projects.find(p => p.id === chat.projectId) : null;
+    const folder = chat && chat.folderId ? window.appStore.state.folders.find(f => f.id === chat.folderId) : null;
+    const conversationId = (chat && chat.difyConversationId) ? chat.difyConversationId : '';
+
+    // Isolated user identifier per chat to guarantee Dify memory isolation across different chats and folders
+    const chatUserId = `${config.userId || 'Dani'}_${chatId}`;
 
     const payload = {
-      inputs: {},
+      inputs: {
+        chat_title: chat ? (chat.title || 'Conversación') : '',
+        project_name: project ? project.name : 'General',
+        folder_name: folder ? folder.name : 'Sin Carpeta'
+      },
       query: query,
       response_mode: 'streaming',
       conversation_id: conversationId || undefined,
-      user: config.userId,
+      user: chatUserId,
       files: files.map(f => ({
-        type: f.type.startsWith('image') ? 'image' : 'document',
+        type: (f.type && f.type.startsWith('image')) ? 'image' : 'document',
         transfer_method: 'local_file',
         upload_file_id: f.id
       }))

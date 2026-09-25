@@ -9,8 +9,8 @@ graph TD
     subgraph UI_UX [UI / UX Apple-Centric & Mobile-First]
         Nav[Dynamic Island, Sync Status Bar & Navigation Bar]
         ZenToggle[Zen Mode / Mobile Sidebar Sheet Toggle]
-        Sidebar[Barra Lateral: Proyectos, Carpetas, Chats con Renombrado/Edición, Tags & Pins]
-        ChatArea[Área de Conversación con Smart Auto-Scroll, SSE Streaming & Live Step Timeline]
+        Sidebar[Barra Lateral: Proyectos, Carpetas, Chats Aislados con Renombrado/Edición, Tags & Pins]
+        ChatArea[Área de Conversación con Smart Auto-Scroll, SSE Streaming Ininterrumpido & Live Step Timeline]
         LiveStepCard[Acciones en Vivo Expandibles & Orden Cronológico Inverso: Última Arriba]
         InputDock[Smart Input: Paste Clipboard Images/Docs, Slash / Commands, Attachment Dock & Prompts]
         StopControl[Control de Detención Inmediata & Cancelación de SSE Stream]
@@ -24,9 +24,9 @@ graph TD
     end
 
     subgraph Core_Engine [Motor de Lógica Frontend & Persistencia]
-        Store[Local Storage & State Engine Reactivo - state.js: CRUD Chats, Commands, Prompts]
-        CloudSync[Cloud Sync Engine Event-Driven: Sincronización por cambio y al finalizar agente - sync.js]
-        DifyClient[Dify SSE Client & Action Humanizer con Manejo de AbortController y Background Execution - dify.js]
+        Store[Local Storage & State Engine Reactivo - state.js: Aislamiento de Memoria por Chat, CRUD Chats, Commands, Prompts]
+        CloudSync[Cloud Sync Engine Event-Driven con Protección Anti-Interrupción en Background - sync.js]
+        DifyClient[Dify SSE Client con Memoria Aislada por Chat y Ejecución en Segundo Plano Continua - dify.js]
         SlashHandler[Slash / Autocomplete & In-Place Cursor Inserter]
         FileEngine[Client Compressor, Paste & Multi-upload Manager]
         CanvasEngine[Live Device Frame & Code Previewer - canvas.js]
@@ -34,7 +34,7 @@ graph TD
     end
 
     subgraph Remote_Services [Servicios Remotos]
-        DifyAPI[Dify API v1: /chat-messages, /files/upload, /messages]
+        DifyAPI[Dify API v1: /chat-messages con Conversation ID & User ID Aislados por Chat]
         SupabaseStorage[Supabase Cloud Bucket: /storage/v1/object/agent-files/workspaces/]
         SupabaseDB[Supabase PostgreSQL DB: /rest/v1/workspaces]
         GistCloudDB[GitHub Cloud Storage API: /gists Fallback Store]
@@ -52,13 +52,14 @@ graph TD
     WebApp --> PromptModal
     WebApp --> SearchModal
     WebApp --> ExportModal
+    WebApp --> FileViewerModal
 
     InputDock --> SlashHandler
     InputDock --> FileEngine
     ChatArea --> DifyClient
-    DifyClient <-->|SSE Stream / HTTPS| DifyAPI
+    DifyClient <-->|SSE Stream / HTTPS Aislado| DifyAPI
     StopControl -->|Abort Controller & Reset UI| DifyClient
-    DifyClient -->|Pausa de Polling mientras actúa| CloudSync
+    DifyClient -->|Pausa de Sincronización mientras actúa| CloudSync
     Store <--> CloudSync
     CloudSync <-->|Storage Bucket Sync JSON| SupabaseStorage
     CloudSync <-->|REST API JSON| SupabaseDB
@@ -69,13 +70,8 @@ graph TD
 ```
 
 ## Componentes y Módulos
-1. **Ejecución Ininterrumpida en Segundo Plano / Cambio de Pestañas (`js/dify.js`, `js/app.js`):** El cliente de streaming SSE mantiene su conexión activa sin abortarse ni reiniciar la UI cuando el usuario cambia de pestaña, minimiza o cambia de foco.
-2. **Pausa Inteligente de Sincronización durante Respuestas del Agente (`js/sync.js`, `js/dify.js`, `js/app.js`):** `pauseSync()` y `resumeSync()` pausan la sincronización periódica mientras el agente está actuando para prevenir sobreescrituras y race conditions en el estado local, reanudándose una vez finalizada la respuesta o al detener manualmente.
-3. **Acciones en Vivo con Orden Inverso y Expansión de Logs (`js/app.js`):** El timeline de acciones en vivo renderiza la acción más reciente en la parte superior y las anteriores hacia abajo; cada recuadro es clicable y expande/colapsa el log detallado de inputs, herramientas y pensamientos del agente.
-4. **Botón de Detener 100% Funcional (`js/app.js`, `js/dify.js`):** El botón de detener invoca de forma segura `dify.stop()`, cancela la petición SSE vía `AbortController`, restaura la interfaz a estado de reposo y reactiva la sincronización.
-5. **Edición y Renombrado de Chats en Toda la Aplicación (`js/app.js`, `js/state.js`, `index.html`):** Botón de edición y renombrado en cada chat de la barra lateral además de la barra superior.
-6. **Gestión CRUD y Eliminación de Comandos y Atajos (`js/app.js`, `js/state.js`):** Soporte integral de métodos `addCommand`, `updateCommand`, `deleteCommand` y sincronización en la nube.
-7. **Gestión CRUD y Eliminación de Plantillas de Prompts (`js/app.js`, `js/state.js`):** Soporte integral de métodos `addPrompt`, `updatePrompt`, `deletePrompt` y persistencia reactiva.
-8. **Barra de Estado de Sincronización Dinámica (`js/sync.js`, `index.html`):** Tres estados canónicos (*"Sincronizado"*, *"Sincronizando"*, *"Offline"*) y fecha/hora precisa (`DD/MM/YYYY HH:mm:ss`).
-9. **Soporte Multimodal & Pegado de Imágenes/Archivos (`js/app.js`):** Interceptor de portapapeles y subida a Dify API con vista previa rápida.
-10. **Side View Multi-Device Responsive (`js/canvas.js`):** Visualización en vivo para Desktop, Tablet y Móvil con slider de comparación.
+1. **Aislamiento Total de Contexto y Memoria entre Chats (`js/dify.js`, `js/state.js`):** Cada conversación posee su propio identificador de conversación (`difyConversationId`) y contexto aislado (`user: ${userId}_${chatId}` y metadatos de proyecto/carpeta en `inputs`), evitando que los mensajes de diferentes carpetas o proyectos se mezclen en un solo hilo.
+2. **Ejecución Continua en Segundo Plano e Inmunidad al Cambio de Pestaña / Ventana (`js/app.js`, `js/dify.js`, `js/sync.js`):** El procesamiento por Fetch Streams continúa de manera fluida aunque el usuario cambie de pestaña, minimice el navegador o abra otra aplicación; la escucha de eventos de almacenamiento (`storage`) y observadores de estado no interrumpen la renderización activa del stream.
+3. **Visor Universal de Archivos Multimodal (`js/app.js`, `index.html`):** Modal interactivo para visualizar imágenes en alta resolución, PDF, código, audio, video y documentos adjuntos.
+4. **Acciones en Vivo con Orden Inverso y Vista Ampliada:** La última acción se posiciona arriba y permite ver detalles y logos ampliados.
+5. **Control de Detención Inmediata:** Botón de detener reactivo con cancelación instantánea de tareas y streams.

@@ -1931,6 +1931,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Listen for storage events (e.g., changes across tabs)
   window.addEventListener('storage', (e) => {
     if (e.key === store.STORAGE_KEY) {
+      // Do not interrupt or re-render active messages if the agent is actively streaming in this tab
+      if (window.isAgentBusy && window.isAgentBusy()) {
+        return;
+      }
       store.state = store.load();
       if (typeof renderSidebar === 'function') renderSidebar();
       if (typeof renderMessages === 'function') renderMessages();
@@ -1973,12 +1977,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // Global Cloud Sync Observer for all UI modules (Mac, iPad, iPhone, PC)
 if (window.appStore) {
   window.appStore.subscribe((state) => {
+    const isBusy = (window.isAgentBusy && window.isAgentBusy());
     if (typeof window.renderSidebar === 'function') window.renderSidebar();
     
-    const stopBtn = document.getElementById('btn-stop');
-    const isStreaming = stopBtn && !stopBtn.classList.contains('hidden');
-    
-    if (!isStreaming && typeof window.renderMessages === 'function') {
+    if (!isBusy && typeof window.renderMessages === 'function') {
       window.renderMessages();
     }
   });

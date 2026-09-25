@@ -209,14 +209,29 @@ class Store {
       }
     }
 
-    // 3. Replace Chats with Remote authoritative state
+    // 3. Replace Chats with Remote authoritative state (preserve active streaming chat)
     if (Array.isArray(remote.chats)) {
-      if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
-        this.state.chats = remote.chats;
-        if (!this.state.activeChatId && remote.chats.length > 0) {
-          this.state.activeChatId = remote.chats[0].id;
+      if (window.isAgentBusy && window.isAgentBusy() && this.state.activeChatId) {
+        // If agent is streaming in active chat, preserve local messages of active chat
+        const currentActiveChat = this.state.chats.find(c => c.id === this.state.activeChatId);
+        const mergedChats = remote.chats.map(rc => {
+          if (rc.id === this.state.activeChatId && currentActiveChat) {
+            return { ...rc, messages: currentActiveChat.messages, difyConversationId: currentActiveChat.difyConversationId || rc.difyConversationId };
+          }
+          return rc;
+        });
+        if (JSON.stringify(this.state.chats) !== JSON.stringify(mergedChats)) {
+          this.state.chats = mergedChats;
+          hasChanges = true;
         }
-        hasChanges = true;
+      } else {
+        if (JSON.stringify(this.state.chats) !== JSON.stringify(remote.chats)) {
+          this.state.chats = remote.chats;
+          if (!this.state.activeChatId && remote.chats.length > 0) {
+            this.state.activeChatId = remote.chats[0].id;
+          }
+          hasChanges = true;
+        }
       }
     }
 
