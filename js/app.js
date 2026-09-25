@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
       filesHtml = `
         <div class="flex flex-wrap gap-2 mb-2">
           ${msg.files.map(f => {
-            const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+            const isImg = (f.type && f.type.startsWith('image/')) || /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i.test(f.name || '');
             const fileData = encodeURIComponent(JSON.stringify({
               id: f.id,
               name: f.name || 'Archivo',
@@ -609,7 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     attachmentDock.classList.remove('hidden');
     attachmentDock.innerHTML = pendingAttachments.map((f, idx) => {
-      const isImg = f.type && (f.type.startsWith('image') || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name));
+      const isImg = (f.type && f.type.startsWith('image/')) || /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i.test(f.name || '');
       const fileData = encodeURIComponent(JSON.stringify({
         id: f.id,
         name: f.name,
@@ -636,25 +636,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!files || files.length === 0) return;
     updateDynamicIsland('Preparando adjuntos...', 'Cargando', true);
 
+    const activeChat = store.getActiveChat();
+    const effectiveChatUserId = activeChat ? `${store.state.config.userId || 'Dani'}_${activeChat.id}` : null;
+
     for (const file of Array.from(files)) {
       try {
         let dataUrl = null;
         let textPreview = null;
 
+        const fileName = file.name || 'archivo_adjunto';
+        const normalizedMime = dify.getMimeType(fileName, file.type);
+        const isImg = dify.isImageFile(fileName, normalizedMime);
+
+        // Normalize File object with exact MIME if missing or generic
+        let preparedFile = file;
+        if (typeof File !== 'undefined' && (!file.type || file.type === 'application/octet-stream' || file.type !== normalizedMime)) {
+          try {
+            preparedFile = new File([file], fileName, { type: normalizedMime });
+          } catch (e) {
+            preparedFile = file;
+          }
+        }
+
         // Extract instant preview data client-side for immediate high-fidelity viewing
-        if (file.type && file.type.startsWith('image/')) {
+        if (isImg) {
           dataUrl = await new Promise((res) => {
             const reader = new FileReader();
             reader.onload = (e) => res(e.target.result);
             reader.onerror = () => res(null);
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(preparedFile);
           });
-        } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        } else if (normalizedMime === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
           dataUrl = await new Promise((res) => {
             const reader = new FileReader();
             reader.onload = (e) => res(e.target.result);
             reader.onerror = () => res(null);
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(preparedFile);
           });
         } else if (file.size < 2 * 1024 * 1024) {
           // Read text files (code, json, markdown, logs, csv, xml, html, txt)
@@ -662,25 +679,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const reader = new FileReader();
             reader.onload = (e) => res(e.target.result);
             reader.onerror = () => res(null);
-            reader.readAsText(file);
+            reader.readAsText(preparedFile);
           });
         }
 
-        // Try uploading to Dify API if server accepts it, otherwise attach file object for upload at send time or local fallback
+        // Pre-upload to Dify with proper user ID
         let uploadId = null;
         try {
-          const uploadRes = await dify.uploadFile(file);
+          const uploadRes = await dify.uploadFile(preparedFile, effectiveChatUserId);
           uploadId = uploadRes && uploadRes.id ? uploadRes.id : null;
         } catch (uploadErr) {
           console.warn('Pre-upload notice:', uploadErr.message);
-          window.appStore.addLog('warn', `Archivo preparado localmente: ${file.name} (${uploadErr.message})`);
+          window.appStore.addLog('warn', `Archivo preparado localmente: ${fileName} (${uploadErr.message})`);
         }
 
         pendingAttachments.push({
           id: uploadId,
-          fileRef: file,
-          name: file.name || (file.type && file.type.startsWith('image') ? 'imagen_pegada.png' : 'documento_adjunto'),
-          type: file.type || 'application/octet-stream',
+          fileRef: preparedFile,
+          name: fileName,
+          type: normalizedMime,
           size: file.size,
           dataUrl: dataUrl,
           textPreview: textPreview
@@ -808,15 +825,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const file = item.getAsFile();
           if (file) {
             let fileName = file.name;
-            if (!fileName || fileName === 'image.png' || fileName === 'blob') {
-              const ext = file.type ? (file.type.split('/')[1] || 'png') : 'png';
-              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-              fileName = file.type.startsWith('image/') ? `captura_${timestamp}.${ext}` : `documento_${timestamp}.${ext}`;
-              const namedFile = new File([file], fileName, { type: file.type });
-              filesToUpload.push(namedFile);
-            } else {
-              filesToUpload.push(file);
+            let ext = 'png';
+            if (file.type) {
+              const sub = file.type.split('/')[1] || '';
+              ext = sub === 'jpeg' ? 'jpeg' : (sub === 'jpg' ? 'jpg' : (sub || 'png'));
             }
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            if (!fileName || fileName === 'image.png' || fileName === 'blob' || fileName === 'image.jpeg') {
+              fileName = (file.type && file.type.startsWith('image/')) ? `captura_${timestamp}.${ext}` : `documento_${timestamp}.${ext}`;
+            }
+            const mime = dify.getMimeType(fileName, file.type);
+            const namedFile = new File([file], fileName, { type: mime });
+            filesToUpload.push(namedFile);
           }
         }
       }
@@ -1371,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Determine category and render appropriate viewer
-    const isImage = type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(lowerName);
+    const isImage = type.startsWith('image/') || /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i.test(lowerName);
     const isPdf = type === 'application/pdf' || lowerName.endsWith('.pdf');
     const isAudio = type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(lowerName);
     const isVideo = type.startsWith('video/') || /\.(mp4|webm|mov|mkv)$/i.test(lowerName);

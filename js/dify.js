@@ -8,13 +8,97 @@ class DifyService {
     return window.appStore.state.config;
   }
 
-  async uploadFile(file) {
-    const config = this.getConfig();
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('user', config.userId);
+  // Helper centralizado para resolver MIME types precisos en cualquier tipo de archivo
+  getMimeType(fileName, declaredType) {
+    if (declaredType && declaredType.trim() !== '' && declaredType !== 'application/octet-stream') {
+      return declaredType;
+    }
+    const ext = (fileName || '').split('.').pop().toLowerCase();
+    const mimeMap = {
+      // Imágenes (todos los formatos incluidos .jpeg, .jpg, .png, etc.)
+      'jpeg': 'image/jpeg',
+      'jpg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml',
+      'bmp': 'image/bmp',
+      'ico': 'image/x-icon',
+      'avif': 'image/avif',
+      'tif': 'image/tiff',
+      'tiff': 'image/tiff',
+      'heic': 'image/heic',
+      'heif': 'image/heif',
+      // Documentos y texto
+      'pdf': 'application/pdf',
+      'txt': 'text/plain',
+      'md': 'text/markdown',
+      'mdx': 'text/markdown',
+      'json': 'application/json',
+      'csv': 'text/csv',
+      'html': 'text/html',
+      'htm': 'text/html',
+      'css': 'text/css',
+      'scss': 'text/x-scss',
+      'js': 'application/javascript',
+      'mjs': 'application/javascript',
+      'ts': 'application/typescript',
+      'tsx': 'application/typescript',
+      'jsx': 'application/javascript',
+      'py': 'text/x-python',
+      'sh': 'application/x-sh',
+      'sql': 'application/sql',
+      'xml': 'application/xml',
+      'yaml': 'application/x-yaml',
+      'yml': 'application/x-yaml',
+      'zip': 'application/zip',
+      'tar': 'application/x-tar',
+      'gz': 'application/gzip',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'ppt': 'application/vnd.ms-powerpoint',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'ogg': 'audio/ogg',
+      'm4a': 'audio/mp4',
+      'mp4': 'video/mp4',
+      'mov': 'video/quicktime',
+      'webm': 'video/webm'
+    };
+    return mimeMap[ext] || 'application/octet-stream';
+  }
 
-    window.appStore.addLog('api', `Subiendo archivo: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+  isImageFile(fileName, mimeType) {
+    const mime = (mimeType || '').toLowerCase();
+    const name = (fileName || '').toLowerCase();
+    return mime.startsWith('image/') || /\.(jpe?g|png|gif|webp|svg|bmp|ico|avif|tiff?|heic|heif)$/i.test(name);
+  }
+
+  async uploadFile(file, overrideUserId = null) {
+    const config = this.getConfig();
+    const effectiveUser = overrideUserId || config.userId || 'Dani';
+
+    const normalizedMime = this.getMimeType(file.name, file.type);
+    let uploadPayloadFile = file;
+
+    // Si el archivo original no tiene el MIME correcto (ej. JPEG sin type o application/octet-stream),
+    // creamos un File con el MIME exacto para garantizar compatibilidad con validadores Dify y LLM
+    if (typeof File !== 'undefined' && (!file.type || file.type === 'application/octet-stream' || file.type !== normalizedMime)) {
+      try {
+        uploadPayloadFile = new File([file], file.name || 'archivo', { type: normalizedMime });
+      } catch (e) {
+        uploadPayloadFile = file;
+      }
+    }
+
+    const formData = new FormData();
+    formData.append('file', uploadPayloadFile, file.name || 'archivo');
+    formData.append('user', effectiveUser);
+
+    window.appStore.addLog('api', `Subiendo archivo: ${file.name} (${(file.size / 1024).toFixed(1)} KB, MIME: ${normalizedMime}, User: ${effectiveUser})`);
 
     try {
       const response = await fetch(`${config.apiUrl}/files/upload`, {
@@ -32,10 +116,10 @@ class DifyService {
       }
 
       const result = await response.json();
-      window.appStore.addLog('info', `Archivo subido con éxito ID: ${result.id}`);
+      window.appStore.addLog('info', `Archivo subido con éxito ID: ${result.id} (${file.name})`);
       return result;
     } catch (err) {
-      window.appStore.addLog('error', `Fallo al subir archivo: ${err.message}`, err);
+      window.appStore.addLog('error', `Fallo al subir archivo ${file.name}: ${err.message}`, err);
       throw err;
     }
   }
@@ -113,21 +197,22 @@ class DifyService {
     // Isolated user identifier per chat to guarantee Dify memory isolation across different chats and folders
     const chatUserId = `${config.userId || 'Dani'}_${chatId}`;
 
-    // Process and ensure valid upload IDs for any pending files
+    // Process and ensure valid upload IDs for any pending files using chatUserId
     const validDifyFiles = [];
     for (const f of files) {
       let uploadId = f.id;
       if (!uploadId && f.fileRef) {
         try {
-          const up = await this.uploadFile(f.fileRef);
+          const up = await this.uploadFile(f.fileRef, chatUserId);
           uploadId = up.id;
         } catch (e) {
           window.appStore.addLog('warn', `No se pudo subir archivo a Dify: ${f.name}`);
         }
       }
       if (uploadId) {
+        const isImg = this.isImageFile(f.name, f.type);
         validDifyFiles.push({
-          type: (f.type && f.type.startsWith('image')) ? 'image' : 'document',
+          type: isImg ? 'image' : 'document',
           transfer_method: 'local_file',
           upload_file_id: uploadId
         });
@@ -151,7 +236,7 @@ class DifyService {
     this.currentReader = null;
     this.currentTaskId = null;
     this.isStopped = false;
-    window.appStore.addLog('api', `Enviando mensaje a Dify API (Conv ID: ${conversationId || 'Nueva'})`);
+    window.appStore.addLog('api', `Enviando mensaje a Dify API (Conv ID: ${conversationId || 'Nueva'}, Adjuntos: ${validDifyFiles.length})`);
 
     // Pausar sincronización periódica mientras el agente está actuando para evitar interrupciones
     if (window.cloudSyncService && typeof window.cloudSyncService.pauseSync === 'function') {
@@ -170,19 +255,16 @@ class DifyService {
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        let errMsg = `Error ${response.status}: ${response.statusText}`;
-        try {
-          const parsed = JSON.parse(errText);
-          errMsg = parsed.message || errMsg;
-        } catch(e){}
-        throw new Error(errMsg);
+        const errorData = await response.json().catch(() => ({}));
+        const msg = errorData.message || errorData.error || `HTTP error ${response.status}: ${response.statusText}`;
+        throw new Error(msg);
       }
 
       const reader = response.body.getReader();
       this.currentReader = reader;
-      const decoder = new TextDecoder('utf-8');
+      const decoder = new TextDecoder();
       let buffer = '';
+
       let accumulatedContent = '';
       let accumulatedThought = '';
       let stepsHistory = [];
@@ -193,30 +275,35 @@ class DifyService {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop();
+        buffer = lines.pop(); // Keep unfinished line in buffer
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed.startsWith('data:')) continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+
           const jsonStr = trimmed.substring(5).trim();
           if (!jsonStr) continue;
 
           try {
             const data = JSON.parse(jsonStr);
             const event = data.event;
+
             if (data.task_id) {
               this.currentTaskId = data.task_id;
             }
 
-            if (event === 'message' || event === 'agent_message') {
-              const chunk = data.answer || '';
-              accumulatedContent += chunk;
-              if (onChunk) onChunk(accumulatedContent, chunk);
+            if (event === 'agent_message' || event === 'message') {
+              const textChunk = data.answer || '';
+              accumulatedContent += textChunk;
+              if (onChunk) onChunk(accumulatedContent, textChunk);
             } else if (event === 'agent_thought') {
               const thought = data.thought || '';
               const tool = data.tool || '';
               const toolInput = data.tool_input || '';
-              accumulatedThought += thought;
+
+              if (thought) {
+                accumulatedThought += (accumulatedThought ? '\n' : '') + thought;
+              }
 
               const action = this.humanizeAction(tool, toolInput, thought);
               
