@@ -27,7 +27,8 @@ class DifyService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error ${response.status}`);
+        const msg = errorData.message || errorData.error || `HTTP error ${response.status}: ${response.statusText}`;
+        throw new Error(msg);
       }
 
       const result = await response.json();
@@ -112,6 +113,27 @@ class DifyService {
     // Isolated user identifier per chat to guarantee Dify memory isolation across different chats and folders
     const chatUserId = `${config.userId || 'Dani'}_${chatId}`;
 
+    // Process and ensure valid upload IDs for any pending files
+    const validDifyFiles = [];
+    for (const f of files) {
+      let uploadId = f.id;
+      if (!uploadId && f.fileRef) {
+        try {
+          const up = await this.uploadFile(f.fileRef);
+          uploadId = up.id;
+        } catch (e) {
+          window.appStore.addLog('warn', `No se pudo subir archivo a Dify: ${f.name}`);
+        }
+      }
+      if (uploadId) {
+        validDifyFiles.push({
+          type: (f.type && f.type.startsWith('image')) ? 'image' : 'document',
+          transfer_method: 'local_file',
+          upload_file_id: uploadId
+        });
+      }
+    }
+
     const payload = {
       inputs: {
         chat_title: chat ? (chat.title || 'Conversación') : '',
@@ -122,11 +144,7 @@ class DifyService {
       response_mode: 'streaming',
       conversation_id: conversationId || undefined,
       user: chatUserId,
-      files: files.map(f => ({
-        type: (f.type && f.type.startsWith('image')) ? 'image' : 'document',
-        transfer_method: 'local_file',
-        upload_file_id: f.id
-      }))
+      files: validDifyFiles
     };
 
     this.abortController = new AbortController();

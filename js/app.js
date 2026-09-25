@@ -634,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function handleFileUpload(files) {
     if (!files || files.length === 0) return;
-    updateDynamicIsland('Subiendo adjuntos...', 'Cargando', true);
+    updateDynamicIsland('Preparando adjuntos...', 'Cargando', true);
 
     for (const file of Array.from(files)) {
       try {
@@ -666,9 +666,19 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
-        const uploadRes = await dify.uploadFile(file);
+        // Try uploading to Dify API if server accepts it, otherwise attach file object for upload at send time or local fallback
+        let uploadId = null;
+        try {
+          const uploadRes = await dify.uploadFile(file);
+          uploadId = uploadRes && uploadRes.id ? uploadRes.id : null;
+        } catch (uploadErr) {
+          console.warn('Pre-upload notice:', uploadErr.message);
+          window.appStore.addLog('warn', `Archivo preparado localmente: ${file.name} (${uploadErr.message})`);
+        }
+
         pendingAttachments.push({
-          id: uploadRes.id,
+          id: uploadId,
+          fileRef: file,
           name: file.name || (file.type && file.type.startsWith('image') ? 'imagen_pegada.png' : 'documento_adjunto'),
           type: file.type || 'application/octet-stream',
           size: file.size,
@@ -676,7 +686,8 @@ document.addEventListener('DOMContentLoaded', () => {
           textPreview: textPreview
         });
       } catch (err) {
-        alert(`Error al subir ${file.name || 'archivo'}: ${err.message}`);
+        console.error('Error handling file attachment:', err);
+        window.appStore.addLog('error', `Error al adjuntar archivo ${file.name}: ${err.message}`);
       }
     }
     renderAttachmentDock();
