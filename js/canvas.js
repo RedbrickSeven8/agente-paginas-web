@@ -158,7 +158,7 @@ class CanvasManager {
     const frame = document.getElementById('canvas-preview-frame');
     const urlBar = document.getElementById('preview-url-bar');
     const externalLinkBtn = document.getElementById('btn-open-external-preview');
-    const fallbackBanner = document.getElementById('iframe-fallback-banner');
+    const fallbackBanner = null;
     if (!frame) return;
 
     if (fallbackBanner) fallbackBanner.classList.add('hidden');

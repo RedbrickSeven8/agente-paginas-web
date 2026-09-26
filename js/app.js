@@ -18,9 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentDock = document.getElementById('attachment-dock');
   const fileInput = document.getElementById('file-upload-input');
   const slashMenu = document.getElementById('slash-command-menu');
-  const dynamicIslandText = document.getElementById('dynamic-island-text');
-  const dynamicIslandBadge = document.getElementById('dynamic-island-badge');
-  const tokenCounterEl = document.getElementById('token-counter');
   const quickShortcutsBar = document.getElementById('quick-shortcuts-bar');
 
   if (window.lucide) lucide.createIcons();
@@ -444,18 +441,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateDynamicIsland(text, badge = 'Listo', isBusy = false) {
-    if (dynamicIslandText) dynamicIslandText.textContent = text;
-    if (dynamicIslandBadge) {
-      dynamicIslandBadge.textContent = badge;
-      dynamicIslandBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all ${isBusy ? 'bg-blue-500/30 text-blue-300 animate-pulse' : 'bg-blue-500/20 text-blue-300'}`;
-    }
+    // Dynamic Island status indicator placeholder
   }
 
   function updateTokenCounter() {
-    if (tokenCounterEl) {
-      const { total, limit } = store.state.tokenUsage;
-      tokenCounterEl.textContent = `${total.toLocaleString()} / ${(limit/1000).toFixed(0)}k tokens`;
-    }
+    // Token usage tracker placeholder
   }
 
   // --- Insertion Helper for TextArea without deleting text ---
@@ -1308,18 +1298,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Modals Setup ---
   const modals = {
     commands: document.getElementById('modal-commands'),
-    debugger: document.getElementById('modal-debugger'),
     export: document.getElementById('modal-export'),
     search: document.getElementById('modal-search'),
-    prompts: document.getElementById('modal-prompts')
+    prompts: document.getElementById('modal-prompts'),
+    fileViewer: document.getElementById('modal-file-viewer')
   };
   document.getElementById('btn-open-commands')?.addEventListener('click', () => {
     renderCommandManager();
-    modals.commands.classList.remove('hidden');
-  });
-  document.getElementById('btn-open-debugger')?.addEventListener('click', () => {
-    renderDebuggerLogs();
-    modals.debugger.classList.remove('hidden');
+    modals.commands?.classList.remove('hidden');
   });
   document.getElementById('btn-open-export')?.addEventListener('click', () => {
     renderExportModal();
@@ -1672,36 +1658,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Debugger Logs Render ---
-  function renderDebuggerLogs() {
-    const logsContainer = document.getElementById('debugger-logs-list');
-    if (!logsContainer) return;
-    if (store.state.logs.length === 0) {
-      logsContainer.innerHTML = '<div class="text-neutral-500 text-center py-6">No hay registros aún</div>';
-      return;
-    }
-    logsContainer.innerHTML = store.state.logs.map(log => {
-      let badgeClass = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      if (log.type === 'error') badgeClass = 'text-red-400 bg-red-500/10 border-red-500/20';
-      if (log.type === 'warn') badgeClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-      if (log.type === 'sse') badgeClass = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
-      return `
-        <div class="p-2 rounded-lg bg-black/40 border border-white/5 font-mono text-[11px] flex items-start space-x-2">
-          <span class="px-1.5 py-0.5 rounded border ${badgeClass} text-[9px] uppercase shrink-0">${log.type}</span>
-          <div class="flex-1 overflow-x-auto">
-            <span class="text-neutral-400 mr-2">[${log.timestamp}]</span>
-            <span class="text-neutral-200">${escapeHtml(log.message)}</span>
-            ${log.details ? `<pre class="text-[10px] text-neutral-500 mt-1">${escapeHtml(JSON.stringify(log.details, null, 2))}</pre>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
 
-  document.getElementById('btn-clear-logs')?.addEventListener('click', () => {
-    store.clearLogs();
-    renderDebuggerLogs();
-  });
 
   // --- Folder & Project ZIP Exporter ---
   async function downloadFolderZip(folderId) {
@@ -1974,26 +1931,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Force Sync Button in Settings Modal
-  const btnForceSync = document.getElementById('btn-force-sync');
-  if (btnForceSync && window.cloudSyncService) {
-    btnForceSync.addEventListener('click', async () => {
-      btnForceSync.innerHTML = '<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i><span>Sincronizando...</span>';
-      if (window.lucide) lucide.createIcons();
-      
-      await window.cloudSyncService.pullState(store.state.config.userId, (data) => {
-        store.mergeRemoteData(data);
-      });
-      await window.cloudSyncService.pushState(store.state);
-      
-      btnForceSync.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i><span class="text-emerald-400">¡Sincronizado!</span>';
-      if (window.lucide) lucide.createIcons();
-      setTimeout(() => {
-        btnForceSync.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>Forzar Sync</span>';
-        if (window.lucide) lucide.createIcons();
-      }, 1500);
-    });
-  }
+
 
   // Subscribe state changes to auto-refresh UI
   store.subscribe(() => {
@@ -2032,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modal-export')?.classList.remove('hidden');
   });
 
-  document.getElementById('btn-top-sync-trigger')?.addEventListener('click', () => {
+  document.getElementById('top-sync-bar')?.addEventListener('click', () => {
     if (window.cloudSyncService && window.appStore) {
       window.cloudSyncService.updateSyncBadge('Sincronizando');
       window.cloudSyncService.pushState(window.appStore.state);
