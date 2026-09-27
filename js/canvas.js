@@ -30,8 +30,8 @@ class CanvasManager {
   </div>
 </body>
 </html>`;
-    this.beforeImage = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80';
-    this.afterImage = 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80';
+    this.beforeImage = 'assets/images/diff-before.png';
+    this.afterImage = 'assets/images/diff-after.png';
     this.init();
   }
 

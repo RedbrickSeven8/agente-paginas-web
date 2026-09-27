@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full dark" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Política de Cookies y Almacenamiento Local — Studio Agent</title>
+  <meta name="description" content="Política de cookies, almacenamiento local e IndexedDB de Studio Agent.">
+  <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            apple: {
+              black: '#000000',
+              card: '#121216',
+              border: 'rgba(255, 255, 255, 0.08)',
+              blue: '#2997ff',
+              purple: '#af52de',
+              emerald: '#30d158'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-black text-neutral-200 min-h-full flex flex-col antialiased selection:bg-blue-500/30 selection:text-white">
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+    <a href="index.html" class="flex items-center space-x-3 group">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 p-[1px] shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
+        <div class="w-full h-full bg-neutral-950 rounded-[11px] flex items-center justify-center">
+          <i data-lucide="sparkles" class="w-4 h-4 text-blue-400"></i>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-white tracking-tight text-sm sm:text-base">Studio Agent</span>
+        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Cookies & Storage</span>
+      </div>
+    </a>
+    <div class="flex items-center space-x-3">
+      <a href="index.html" class="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-neutral-300 hover:text-white transition-all flex items-center space-x-1.5">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span>Volver a la App</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Legal Container -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-16">
+    <div class="space-y-8">
+      <!-- Title Badge & Hero -->
+      <div class="space-y-3">
+        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
+          <i data-lucide="cookie" class="w-3.5 h-3.5"></i>
+          <span>Transparencia de Rastreo y Persistencia</span>
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Política de Cookies y Almacenamiento</h1>
+        <p class="text-sm text-neutral-400 font-mono">Conoce qué tecnologías de almacenamiento web utiliza Studio Agent para su funcionamiento en tiempo real.</p>
+      </div>
+
+      <!-- Legal Content Sections -->
+      <div class="apple-glass-heavy rounded-2xl border border-white/10 p-6 sm:p-8 space-y-8 text-neutral-300 text-sm leading-relaxed">
+        
+        <section class="space-y-3">
+          <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">1</span>
+            <span>¿Qué son las cookies y tecnologías similares?</span>
+          </h2>
+          <p>Las cookies y los mecanismos de almacenamiento web (tales como <strong>LocalStorage</strong>, <strong>SessionStorage</strong> e <strong>IndexedDB</strong>) son pequeños ficheros o almacenes de datos que su navegador guarda en su dispositivo para recordar estados de sesión, configuraciones personalizadas y proyectos en edición continua.</p>
+        </section>
+
+        <section class="space-y-4 border-t border-white/5 pt-6">
+          <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs">2</span>
+            <span>Categorías de Almacenamiento en Studio Agent</span>
+          </h2>
+          <div class="space-y-3">
+            <div class="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-xs uppercase tracking-wider text-emerald-400">1. Almacenamiento Estrictamente Necesario (Técnico)</span>
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">Siempre Activo</span>
+              </div>
+              <p class="text-neutral-400 text-xs">Permite guardar la lista de chats activos, identificador de usuario (`dify_user_id`), árbol de carpetas de proyectos y la biblioteca de prompts personalizados en LocalStorage. Sin este mecanismo la aplicación no puede retener sus sesiones.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-xs uppercase tracking-wider text-blue-400">2. Cookies de Preferencias de UI/UX</span>
+                <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">Funcional</span>
+              </div>
+              <p class="text-neutral-400 text-xs">Guarda el estado del modo Zen (barra lateral visible/oculta), tema visual, resolución activa del Canvas lateral (Desktop, Tablet, Mobile) y preferencia de consentimiento de cookies.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white/5 border border-white/5 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-xs uppercase tracking-wider text-purple-400">3. Sin Cookies de Publicidad ni Rastreo Invasivo</span>
+                <span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-mono">0 Rastreo de Terceros</span>
+              </div>
+              <p class="text-neutral-400 text-xs">Studio Agent <strong>no</strong> utiliza cookies de terceros para publicidad dirigida, telemetría comercial ni venta de perfiles de usuario.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-3 border-t border-white/5 pt-6">
+          <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs">3</span>
+            <span>Gestión y Eliminación de Almacenamiento</span>
+          </h2>
+          <p>Puede borrar o reiniciar su almacenamiento local en cualquier momento a través de la configuración de su navegador web o mediante el panel de depuración de la aplicación. Tenga en cuenta que al borrar el almacenamiento local se reiniciarán sus conversaciones locales no sincronizadas.</p>
+        </section>
+
+        <section class="space-y-3 border-t border-white/5 pt-6">
+          <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs">4</span>
+            <span>Contacto de Soporte</span>
+          </h2>
+          <p>Para resolver cualquier duda respecto al uso de tecnologías de almacenamiento y cookies, contáctenos en <a href="mailto:soporte@studioagent.app" class="text-emerald-400 hover:underline">soporte@studioagent.app</a>.</p>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer Legal Links -->
+  <footer class="border-t border-white/10 bg-neutral-950/60 py-6 px-4 text-center text-xs text-neutral-400">
+    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-2">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span>&copy; 2026 Studio Agent AI. Todos los derechos reservados.</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a href="terminos.html" class="hover:text-white transition-colors">Términos y Condiciones</a>
+        <span class="text-neutral-600">•</span>
+        <a href="politica-datos.html" class="hover:text-white transition-colors">Política de Datos</a>
+        <span class="text-neutral-600">•</span>
+        <a href="cookies.html" class="text-white font-medium hover:underline">Cookies</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>lucide.createIcons();</script>
+</body>
+</html>

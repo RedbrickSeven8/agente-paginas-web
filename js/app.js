@@ -1983,3 +1983,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+
+// Cookie Banner & Legal Modal Handlers
+function initLegalAndCookieBanner() {
+  const cookieBanner = document.getElementById('cookie-banner');
+  const btnAcceptCookies = document.getElementById('btn-accept-cookies');
+  const btnOpenLegal = document.getElementById('btn-open-legal');
+  const modalLegal = document.getElementById('modal-legal');
+
+  if (localStorage.getItem('studio_cookies_accepted') === 'true') {
+    if (cookieBanner) cookieBanner.classList.add('hidden');
+  }
+
+  if (btnAcceptCookies && cookieBanner) {
+    btnAcceptCookies.addEventListener('click', () => {
+      localStorage.setItem('studio_cookies_accepted', 'true');
+      cookieBanner.classList.add('opacity-0', 'translate-y-4');
+      setTimeout(() => cookieBanner.classList.add('hidden'), 300);
+    });
+  }
+
+  if (btnOpenLegal && modalLegal) {
+    btnOpenLegal.addEventListener('click', () => {
+      modalLegal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    initLegalAndCookieBanner();
+  } catch (e) {
+    console.warn('Legal banner init warning:', e);
+  }
+});
