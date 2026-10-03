@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvas = window.canvasManager;
 
   // State local pointers
+  let isAgentStreaming = false;
+  window.isAgentBusy = () => isAgentStreaming;
   let pendingAttachments = [];
   let activeSlashIndex = 0;
   let filteredCommands = [];
@@ -317,6 +319,24 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <p class="text-xs text-neutral-400 group-hover:text-neutral-200">/creartextos de alta conversión</p>
             </button>
+            ${(store.state.promptTemplates && store.state.promptTemplates.length > 0) ? `
+              <div class="col-span-1 sm:col-span-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-400"></i>
+                  <span>Tus Prompts Sincronizados (${store.state.promptTemplates.length})</span>
+                </span>
+                <button id="btn-open-prompts-welcome" class="text-[11px] text-purple-400 hover:text-purple-300 hover:underline">Ver todos</button>
+              </div>
+              ${store.state.promptTemplates.slice(0, 2).map(pt => `
+                <button class="quick-prompt-card p-3 rounded-xl bg-purple-950/20 border border-purple-500/20 text-left hover:border-purple-500/40 hover:bg-purple-950/30 transition-all group" data-prompt="${escapeHtml(pt.text)}">
+                  <div class="flex items-center space-x-2 text-purple-300 mb-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-purple-400"></i>
+                    <span class="text-xs font-semibold truncate">${escapeHtml(pt.title)}</span>
+                  </div>
+                  <p class="text-[11px] text-neutral-400 truncate group-hover:text-neutral-200">${escapeHtml(pt.text)}</p>
+                </button>
+              `).join()}
+            ` : ""}
           </div>
         </div>
       `;
@@ -400,13 +420,17 @@ document.addEventListener('DOMContentLoaded', () => {
           <span>Copiar</span>
         </button>
         ${!isUser ? `
-          <button class="btn-open-canvas text-[11px] hover:text-blue-400 flex items-center space-x-1" data-msg-id="${msg.id}">
-            <i data-lucide="sidebar" class="w-3 h-3"></i>
-            <span>Ver Side View</span>
+          <button class="btn-retry-msg text-[11px] hover:text-purple-400 flex items-center space-x-1 text-neutral-400 hover:bg-white/5 px-2 py-0.5 rounded transition-all" data-msg-id="${msg.id}" title="Reintentar y regenerar esta respuesta">
+            <i data-lucide="rotate-ccw" class="w-3 h-3 text-purple-400"></i>
+            <span>Reintentar</span>
+          </button>
+          <button class="btn-open-canvas text-[11px] hover:text-blue-400 flex items-center space-x-1 text-neutral-400 hover:bg-white/5 px-2 py-0.5 rounded transition-all" data-msg-id="${msg.id}">
+            <i data-lucide="sidebar" class="w-3 h-3 text-blue-400"></i>
+            <span>Side View</span>
           </button>
         ` : `
-          <button class="btn-edit-msg text-[11px] hover:text-blue-400 flex items-center space-x-1" data-msg-id="${msg.id}">
-            <i data-lucide="edit-3" class="w-3 h-3"></i>
+          <button class="btn-edit-msg text-[11px] hover:text-blue-400 flex items-center space-x-1 text-neutral-400 hover:bg-white/5 px-2 py-0.5 rounded transition-all" data-msg-id="${msg.id}">
+            <i data-lucide="edit-3" class="w-3 h-3 text-blue-400"></i>
             <span>Editar</span>
           </button>
         `}
@@ -478,9 +502,100 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Send Message & Stream Handler ---
+  async function executeAgentFlow(queryText, filesList, targetAssistantMsgId = null) {
+    let activeChat = store.getActiveChat();
+    if (!activeChat) {
+      activeChat = store.addChat({ title: queryText.substring(0, 30) || 'Nuevo Chat', projectId: store.state.activeProjectId });
+    }
+
+    isAgentStreaming = true;
+    sendBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+    updateDynamicIsland('Iniciando acciones...', 'En vivo', true);
+
+    let assistantMsg;
+    if (targetAssistantMsgId) {
+      store.updateMessage(activeChat.id, targetAssistantMsgId, {
+        content: '',
+        thought: '',
+        toolCalls: [],
+        steps: []
+      }, true);
+      assistantMsg = { id: targetAssistantMsgId };
+    } else {
+      assistantMsg = store.addMessage(activeChat.id, {
+        role: 'assistant',
+        content: '',
+        thought: '',
+        toolCalls: [],
+        steps: []
+      }, true);
+    }
+    renderMessages();
+
+    let fullAnswer = '';
+    let fullThought = '';
+    let stepsList = [];
+
+    try {
+      await dify.sendMessage({
+        query: queryText,
+        files: filesList,
+        chatId: activeChat.id,
+        onChunk: (accumulated, chunk) => {
+          fullAnswer = accumulated;
+          store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer, steps: stepsList }, true);
+          updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
+        },
+        onThought: (accumulatedThought, action, stepsHistory) => {
+          fullThought = accumulatedThought;
+          stepsList = stepsHistory;
+          updateDynamicIsland(action.title, 'En progreso', true);
+          store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, steps: stepsList }, true);
+          updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
+        },
+        onComplete: (content, thought, steps) => {
+          isAgentStreaming = false;
+          sendBtn.classList.remove('hidden');
+          stopBtn.classList.add('hidden');
+          updateDynamicIsland('En reposo', 'Listo', false);
+          store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, steps: steps || stepsList }, false);
+          renderMessages();
+          renderSidebar();
+          updateTokenCounter();
+
+          // Auto open HTML preview if present
+          if (content && (content.includes('<!DOCTYPE html>') || content.includes('<html') || content.includes('```html'))) {
+            const match = content.match(/```html([\s\S]*?)```/);
+            const rawHtml = match ? match[1] : (content.includes('<html') ? content : null);
+            if (rawHtml) {
+              canvas.open('preview', rawHtml);
+            }
+          }
+        },
+        onError: (err) => {
+          isAgentStreaming = false;
+          sendBtn.classList.remove('hidden');
+          stopBtn.classList.add('hidden');
+          updateDynamicIsland('Error en respuesta', 'Alerta', false);
+          store.updateMessage(activeChat.id, assistantMsg.id, {
+            content: `⚠️ Hubo un error al procesar tu solicitud: ${err.message}`
+          }, false);
+          renderMessages();
+        }
+      });
+    } catch (e) {
+      isAgentStreaming = false;
+      sendBtn.classList.remove('hidden');
+      stopBtn.classList.add('hidden');
+      updateDynamicIsland('Error', 'Alerta', false);
+    }
+  }
+
   async function handleSendMessage() {
     const text = chatInputEl.value.trim();
     if (!text && pendingAttachments.length === 0) return;
+    if (isAgentStreaming) return;
 
     let activeChat = store.getActiveChat();
     if (!activeChat) {
@@ -505,70 +620,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     renderMessages();
 
-    sendBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
-    updateDynamicIsland('Iniciando acciones...', 'En vivo', true);
-
-    const assistantMsg = store.addMessage(activeChat.id, {
-      role: 'assistant',
-      content: '',
-      thought: '',
-      toolCalls: [],
-      steps: []
-    }, true);
-
-    let fullAnswer = '';
-    let fullThought = '';
-    let stepsList = [];
-
-    await dify.sendMessage({
-      query: text,
-      files: currentFiles,
-      chatId: activeChat.id,
-      onChunk: (accumulated, chunk) => {
-        fullAnswer = accumulated;
-        // Don't push to cloud during streaming chunks to keep agent completely uninterrupted
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: fullAnswer, steps: stepsList }, true);
-        updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
-      },
-      onThought: (accumulatedThought, action, stepsHistory) => {
-        fullThought = accumulatedThought;
-        stepsList = stepsHistory;
-        updateDynamicIsland(action.title, 'En progreso', true);
-        // Don't push to cloud during streaming thoughts to keep agent completely uninterrupted
-        store.updateMessage(activeChat.id, assistantMsg.id, { thought: fullThought, steps: stepsList }, true);
-        updateMessageDOM(assistantMsg.id, fullAnswer, stepsList, true);
-      },
-      onComplete: (content, thought, steps) => {
-        sendBtn.classList.remove('hidden');
-        stopBtn.classList.add('hidden');
-        updateDynamicIsland('En reposo', 'Listo', false);
-        // Save and sync to cloud once generation is completely finished
-        store.updateMessage(activeChat.id, assistantMsg.id, { content: content || fullAnswer, thought, steps: steps || stepsList }, false);
-        renderMessages();
-        renderSidebar();
-        updateTokenCounter();
-
-        // Auto open HTML preview if present
-        if (content && (content.includes('<!DOCTYPE html>') || content.includes('<html') || content.includes('```html'))) {
-          const match = content.match(/```html([\s\S]*?)```/);
-          const rawHtml = match ? match[1] : (content.includes('<html') ? content : null);
-          if (rawHtml) {
-            canvas.open('preview', rawHtml);
-          }
-        }
-      },
-      onError: (err) => {
-        sendBtn.classList.remove('hidden');
-        stopBtn.classList.add('hidden');
-        updateDynamicIsland('Error en respuesta', 'Alerta', false);
-        store.updateMessage(activeChat.id, assistantMsg.id, {
-          content: `⚠️ Hubo un error al procesar tu solicitud: ${err.message}`
-        }, false);
-        renderMessages();
-      }
-    });
+    await executeAgentFlow(text, currentFiles);
   }
+
+  async function retryLastAgentResponse(msgId = null) {
+    if (isAgentStreaming) return;
+    const activeChat = store.getActiveChat();
+    if (!activeChat || !Array.isArray(activeChat.messages) || activeChat.messages.length === 0) return;
+
+    let targetAssistantIdx = -1;
+    if (msgId) {
+      targetAssistantIdx = activeChat.messages.findIndex(m => m.id === msgId);
+    } else {
+      // Find the last assistant message
+      for (let i = activeChat.messages.length - 1; i >= 0; i--) {
+        if (activeChat.messages[i].role === 'assistant') {
+          targetAssistantIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (targetAssistantIdx === -1) {
+      // If there is no assistant message, check if there is a user message
+      const lastUser = [...activeChat.messages].reverse().find(m => m.role === 'user');
+      if (lastUser) {
+        await executeAgentFlow(lastUser.content, lastUser.files || []);
+      }
+      return;
+    }
+
+    // Find the preceding user message before targetAssistantIdx
+    let userQuery = '';
+    let userFiles = [];
+    for (let i = targetAssistantIdx - 1; i >= 0; i--) {
+      if (activeChat.messages[i].role === 'user') {
+        userQuery = activeChat.messages[i].content;
+        userFiles = activeChat.messages[i].files || [];
+        break;
+      }
+    }
+
+    if (!userQuery && (!userFiles || userFiles.length === 0)) {
+      userQuery = activeChat.messages[targetAssistantIdx].content || 'Reintentar solicitud';
+    }
+
+    const targetAssistantMsgId = activeChat.messages[targetAssistantIdx].id;
+    userScrolledUp = false;
+    await executeAgentFlow(userQuery, userFiles, targetAssistantMsgId);
+  }
+
+  window.retryLastAgentResponse = retryLastAgentResponse;
 
   function updateMessageDOM(msgId, content, steps, isStreaming = false) {
     const el = document.getElementById(msgId);
@@ -858,6 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     await dify.stop();
     
+    isAgentStreaming = false;
     sendBtn.classList.remove('hidden');
     stopBtn.classList.add('hidden');
     stopBtn.innerHTML = '<i data-lucide="square" class="w-3.5 h-3.5"></i><span>Detener</span>';
@@ -1144,6 +1247,13 @@ document.addEventListener('DOMContentLoaded', () => {
       store.addChat({ title: 'Nuevo Chat en Carpeta', projectId: pId, folderId: fId });
       renderSidebar();
       renderMessages();
+      return;
+    }
+
+    const retryMsgBtn = e.target.closest('.btn-retry-msg');
+    if (retryMsgBtn) {
+      const msgId = retryMsgBtn.dataset.msgId;
+      retryLastAgentResponse(msgId);
       return;
     }
 
@@ -1564,7 +1674,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSubmitPrompt = document.getElementById('btn-submit-prompt');
   const btnCancelEditPrompt = document.getElementById('btn-cancel-edit-prompt');
 
-  function renderPromptsList() {
+  window.renderPromptsList = function renderPromptsList() {
     const listEl = document.getElementById('prompts-gallery-list');
     if (!listEl) return;
     if (store.state.promptTemplates.length === 0) {
@@ -1940,6 +2050,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (projectsListEl && typeof renderSidebar === 'function') {
       renderSidebar();
     }
+    if (typeof window.renderPromptsList === 'function') {
+      window.renderPromptsList();
+    }
+    if (typeof window.renderQuickShortcutsBar === 'function') {
+      window.renderQuickShortcutsBar();
+    }
   });
 });
 
@@ -1952,6 +2068,9 @@ if (window.appStore) {
     if (!isBusy && typeof window.renderMessages === 'function') {
       window.renderMessages();
     }
+    if (typeof window.renderPromptsList === 'function') {
+      window.renderPromptsList();
+    }
   });
 }
 
@@ -1960,6 +2079,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-open-prompts-mobile')?.addEventListener('click', () => {
     document.getElementById('sidebar')?.classList.add('-translate-x-full');
     document.getElementById('sidebar-backdrop')?.classList.add('hidden');
+    if (typeof window.renderPromptsList === 'function') window.renderPromptsList();
     document.getElementById('modal-prompts')?.classList.remove('hidden');
   });
 

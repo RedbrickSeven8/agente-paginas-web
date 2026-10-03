@@ -96,3 +96,5 @@ graph TD
 7. **Visor Universal de Archivos Multimodal (`js/app.js`, `index.html`):** Modal interactivo para visualizar imágenes en alta resolución, PDF, código, audio, video y documentos adjuntos.
 8. **Acciones en Vivo con Orden Inverso y Vista Ampliada:** La última acción se posiciona arriba y permite ver detalles y logos ampliados.
 9. **Control de Detención Inmediata:** Botón de detener reactivo con cancelación instantánea de tareas y streams.
+10. **Botón de Reintentar Respuestas (`btn-retry-msg`, `btn-retry-active-chat`):** Botón integrado en cada mensaje del asistente y en la barra superior de conversación que permite reejecutar la última solicitud con los parámetros y archivos previos sin duplicar datos ni perder el contexto.
+11. **Sincronización Total y Accesibilidad Móvil de la Biblioteca de Prompts:** Activación inmediata y sincronización en tiempo real de plantillas de prompts tanto en móvil como en escritorio, renderizado automático al abrir el modal desde cualquier dispositivo y previsualización de prompts guardados en el inicio.

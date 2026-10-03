@@ -450,6 +450,15 @@ class Store {
     return msg;
   }
 
+  deleteMessage(chatId, msgId, skipCloudPush = false) {
+    const chat = this.state.chats.find(x => x.id === chatId);
+    if (chat && Array.isArray(chat.messages)) {
+      chat.messages = chat.messages.filter(m => m.id !== msgId);
+      chat.updatedAt = new Date().toISOString();
+      this.save(skipCloudPush);
+    }
+  }
+
   updateMessage(chatId, msgId, updates, skipCloudPush = false) {
     const chat = this.state.chats.find(x => x.id === chatId);
     if (chat && Array.isArray(chat.messages)) {
