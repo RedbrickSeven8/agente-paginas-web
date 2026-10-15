@@ -1,11 +1,45 @@
 # PROJECT MAP - STUDIO AGENT CLIENT (APPLE-CENTRIC AI WORKSPACE)
 
+## Estructura de Directorios del Repositorio
+
+```
+agente-paginas-web/                     # Carpeta Raíz del Proyecto / Empresa
+├── graph.json                          # Único archivo en la raíz del proyecto (Estructura de Nodos)
+└── agente-paginas-web-app/             # Carpeta contenedora del sitio web y aplicación
+    ├── CNAME                           # Configuración de Dominio Personalizado
+    ├── README.md                       # Documentación de la Aplicación
+    ├── index.html                      # Interfaz Principal WebApp
+    ├── terminos.html                   # Términos y Condiciones Legales
+    ├── politica-datos.html             # Política de Tratamiento de Datos / Habeas Data
+    ├── cookies.html                    # Política de Cookies y Almacenamiento Local
+    ├── assets/                         # Recursos Multimedia e Iconos
+    │   ├── icons/                      # Favicons, App Icons, SVG Badges
+    │   └── images/                     # Capturas, Mockups, Diagramas de Arquitectura
+    ├── css/                            # Estilos y Temas
+    │   └── style.css                   # Tailwind v4 / Custom Modern Glassmorphic CSS
+    ├── downloads/                      # Documentación y Recursos Descargables
+    │   └── WebApp Agente-paginas-web.md
+    └── js/                             # Módulos y Lógica JavaScript
+        ├── app.js                      # Controlador Principal UI & Event Listeners
+        ├── canvas.js                   # Previsualizador en Vivo Side View & Device Frames
+        ├── dify.js                     # Cliente SSE Dify & Normalización de Archivos
+        ├── state.js                    # Estado Reactivo, Memoria y LocalStorage
+        └── sync.js                     # Engine de Sincronización Cloud Supabase / Gist
+PROJECT_MAP.md                          # Mapa Global del Proyecto
+```
+
 ## Arquitectura del Sistema (Mermaid Graph)
 
 ```mermaid
 graph TD
     User([Usuario Global: Dani • Multi-dispositivo: Mac, iPad, iPhone, Android, PC]) --> WebApp[Studio Agent WebApp]
     
+    subgraph Repository_Structure [Estructura de Carpetas & Nodos]
+        RootFolder[agente-paginas-web/] --> GraphFile[graph.json]
+        RootFolder --> AppFolder[agente-paginas-web-app/]
+        AppFolder --> HTMLFiles[Páginas Web HTML / Assets / JS / CSS]
+    end
+
     subgraph UI_UX [UI / UX Apple-Centric & Mobile-First]
         Nav[Dynamic Island, Sync Status Bar & Navigation Bar]
         ZenToggle[Zen Mode / Mobile Sidebar Sheet Toggle]
@@ -87,14 +121,11 @@ graph TD
 ```
 
 ## Componentes y Módulos
-1. **Páginas Legales y Cumplimiento Normativo (`terminos.html`, `politica-datos.html`, `cookies.html`):** Cobertura legal integral con diseño Apple Glassmorphic, cumplimiento de Habeas Data, RGPD y aviso flotante de cookies de almacenamiento técnico.
-2. **Assets Visuales e Iconografía Generada (`assets/icons/`, `assets/images/`):** Logo vectorial/PNG squircle en alta resolución, previsualizaciones de interfaz, comparativas visuales Before/After y diagramas de arquitectura web sin dependencias externas.
-3. **Compatibilidad Universal de Archivos e Imágenes (`js/app.js`, `js/dify.js`):** Soporte total y normalización de todos los formatos de archivo e imágenes (`.jpeg`, `.jpg`, `.png`, `.webp`, `.gif`, `.svg`, `.bmp`, `.ico`, `.avif`, `.heic`, `.pdf`, `.txt`, `.md`, `.json`, etc.). Mapeo estricto de tipos MIME y resolución de `image/jpeg` frente a cadenas vacías o `application/octet-stream`.
-4. **Manejo Robusto y Resiliente de Archivos Adjuntos (`js/app.js`, `js/dify.js`):** Soporte completo para subida y visualización de imágenes (capturas de pantalla, pegado de portapapeles), PDFs, código y documentos con previsualización inmediata en local y validación estricta de IDs de subida antes de enviar a Dify.
-5. **Aislamiento Total de Contexto y Memoria entre Chats (`js/dify.js`, `js/state.js`):** Cada conversación posee su propio identificador de conversación (`difyConversationId`) y contexto aislado (`user: ${userId}_${chatId}` y metadatos de proyecto/carpeta en `inputs`).
-6. **Ejecución Continua en Segundo Plano e Inmunidad al Cambio de Pestaña / Ventana (`js/app.js`, `js/dify.js`, `js/sync.js`):** El procesamiento por Fetch Streams continúa de manera fluida aunque el usuario cambie de pestaña o minimice la aplicación.
-7. **Visor Universal de Archivos Multimodal (`js/app.js`, `index.html`):** Modal interactivo para visualizar imágenes en alta resolución, PDF, código, audio, video y documentos adjuntos.
-8. **Acciones en Vivo con Orden Inverso y Vista Ampliada:** La última acción se posiciona arriba y permite ver detalles y logos ampliados.
-9. **Control de Detención Inmediata:** Botón de detener reactivo con cancelación instantánea de tareas y streams.
-10. **Botón de Reintentar Respuestas (`btn-retry-msg`, `btn-retry-active-chat`):** Botón integrado en cada mensaje del asistente y en la barra superior de conversación que permite reejecutar la última solicitud con los parámetros y archivos previos sin duplicar datos ni perder el contexto.
-11. **Sincronización Total y Accesibilidad Móvil de la Biblioteca de Prompts:** Activación inmediata y sincronización en tiempo real de plantillas de prompts tanto en móvil como en escritorio, renderizado automático al abrir el modal desde cualquier dispositivo y previsualización de prompts guardados en el inicio.
+1. **Estructura Modular de Repositorio:** Organización bajo la norma estricta del proyecto (`agente-paginas-web/graph.json` en la raíz y la aplicación completa alojada en `agente-paginas-web/agente-paginas-web-app/`).
+2. **Páginas Legales y Cumplimiento Normativo (`terminos.html`, `politica-datos.html`, `cookies.html`):** Cobertura legal integral con diseño Apple Glassmorphic, cumplimiento de Habeas Data, RGPD y aviso flotante de cookies de almacenamiento técnico.
+3. **Assets Visuales e Iconografía Generada (`assets/icons/`, `assets/images/`):** Logo vectorial/PNG squircle en alta resolución, previsualizaciones de interfaz, comparativas visuales Before/After y diagramas de arquitectura web sin dependencias externas.
+4. **Compatibilidad Universal de Archivos e Imágenes (`js/app.js`, `js/dify.js`):** Soporte total y normalización de todos los formatos de archivo e imágenes (`.jpeg`, `.jpg`, `.png`, `.webp`, `.gif`, `.svg`, `.bmp`, `.ico`, `.avif`, `.heic`, `.pdf`, `.txt`, `.md`, `.json`, etc.).
+5. **Aislamiento Total de Contexto y Memoria entre Chats (`js/dify.js`, `js/state.js`):** Cada conversación posee su propio identificador de conversación (`difyConversationId`) y contexto aislado.
+6. **Ejecución Continua en Segundo Plano e Inmunidad al Cambio de Pestaña / Ventana (`js/app.js`, `js/dify.js`, `js/sync.js`):** Procesamiento Fetch Streams ininterrumpido.
+7. **Visor Universal de Archivos Multimodal (`js/app.js`, `index.html`):** Modal interactivo para previsualización multimodal.
+8. **Sincronización Cloud Supabase / Gist:** Respaldo y persistencia en tiempo real.

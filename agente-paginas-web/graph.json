@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {
+      "id": "agente-paginas-web",
+      "type": "project",
+      "label": "Agente Páginas Web",
+      "description": "Plataforma Workspace AI Apple-Centric para desarrollo y gestión de páginas web."
+    },
+    {
+      "id": "agente-paginas-web-app",
+      "type": "application",
+      "label": "Aplicación Web Principal",
+      "path": "./agente-paginas-web-app"
+    }
+  ],
+  "edges": [
+    {
+      "source": "agente-paginas-web",
+      "target": "agente-paginas-web-app",
+      "relation": "contains"
+    }
+  ]
+}
