@@ -3,8 +3,9 @@
 ## Estructura de Directorios del Repositorio
 
 ```
-agente-paginas-web/                     # Carpeta Raíz del Proyecto / Empresa
+/ (Raíz del Repositorio)
 ├── graph.json                          # Único archivo en la raíz del proyecto (Estructura de Nodos)
+├── PROJECT_MAP.md                      # Mapa Global del Proyecto
 └── agente-paginas-web-app/             # Carpeta contenedora del sitio web y aplicación
     ├── CNAME                           # Configuración de Dominio Personalizado
     ├── README.md                       # Documentación de la Aplicación
@@ -25,7 +26,6 @@ agente-paginas-web/                     # Carpeta Raíz del Proyecto / Empresa
         ├── dify.js                     # Cliente SSE Dify & Normalización de Archivos
         ├── state.js                    # Estado Reactivo, Memoria y LocalStorage
         └── sync.js                     # Engine de Sincronización Cloud Supabase / Gist
-PROJECT_MAP.md                          # Mapa Global del Proyecto
 ```
 
 ## Arquitectura del Sistema (Mermaid Graph)
@@ -35,7 +35,7 @@ graph TD
     User([Usuario Global: Dani • Multi-dispositivo: Mac, iPad, iPhone, Android, PC]) --> WebApp[Studio Agent WebApp]
     
     subgraph Repository_Structure [Estructura de Carpetas & Nodos]
-        RootFolder[agente-paginas-web/] --> GraphFile[graph.json]
+        RootFolder[/ Raíz del Repositorio] --> GraphFile[graph.json]
         RootFolder --> AppFolder[agente-paginas-web-app/]
         AppFolder --> HTMLFiles[Páginas Web HTML / Assets / JS / CSS]
     end
@@ -119,13 +119,3 @@ graph TD
     Store <--> WebApp
     ExportEngine <--> Store
 ```
-
-## Componentes y Módulos
-1. **Estructura Modular de Repositorio:** Organización bajo la norma estricta del proyecto (`agente-paginas-web/graph.json` en la raíz y la aplicación completa alojada en `agente-paginas-web/agente-paginas-web-app/`).
-2. **Páginas Legales y Cumplimiento Normativo (`terminos.html`, `politica-datos.html`, `cookies.html`):** Cobertura legal integral con diseño Apple Glassmorphic, cumplimiento de Habeas Data, RGPD y aviso flotante de cookies de almacenamiento técnico.
-3. **Assets Visuales e Iconografía Generada (`assets/icons/`, `assets/images/`):** Logo vectorial/PNG squircle en alta resolución, previsualizaciones de interfaz, comparativas visuales Before/After y diagramas de arquitectura web sin dependencias externas.
-4. **Compatibilidad Universal de Archivos e Imágenes (`js/app.js`, `js/dify.js`):** Soporte total y normalización de todos los formatos de archivo e imágenes (`.jpeg`, `.jpg`, `.png`, `.webp`, `.gif`, `.svg`, `.bmp`, `.ico`, `.avif`, `.heic`, `.pdf`, `.txt`, `.md`, `.json`, etc.).
-5. **Aislamiento Total de Contexto y Memoria entre Chats (`js/dify.js`, `js/state.js`):** Cada conversación posee su propio identificador de conversación (`difyConversationId`) y contexto aislado.
-6. **Ejecución Continua en Segundo Plano e Inmunidad al Cambio de Pestaña / Ventana (`js/app.js`, `js/dify.js`, `js/sync.js`):** Procesamiento Fetch Streams ininterrumpido.
-7. **Visor Universal de Archivos Multimodal (`js/app.js`, `index.html`):** Modal interactivo para previsualización multimodal.
-8. **Sincronización Cloud Supabase / Gist:** Respaldo y persistencia en tiempo real.
